@@ -6,20 +6,26 @@ envInitConfig='git config filter.lfs.process = "git-lfs filter-process"
 git config filter.lfs.smudge = "git-lfs smudge -- %f"
 git config filter.lfs.clean = "git-lfs clean -- %f"'
 
+unset_vars() {
+    # If set, these will cause the test to fail.
+    unset GIT_LFS_NO_TEST_COUNT GIT_LFS_LOCK_ACQUIRE_DISABLED
+}
+
 begin_test "env with no remote"
 (
   set -e
   reponame="env-no-remote"
+  unset_vars
   mkdir $reponame
   cd $reponame
   git init
 
-  localwd=$(native_path "$TRASHDIR/$reponame")
-  localgit=$(native_path "$TRASHDIR/$reponame/.git")
-  localgitstore=$(native_path "$TRASHDIR/$reponame/.git")
-  lfsstorage=$(native_path "$TRASHDIR/$reponame/.git/lfs")
-  localmedia=$(native_path "$TRASHDIR/$reponame/.git/lfs/objects")
-  tempdir=$(native_path "$TRASHDIR/$reponame/.git/lfs/tmp")
+  localwd=$(canonical_path "$TRASHDIR/$reponame")
+  localgit=$(canonical_path "$TRASHDIR/$reponame/.git")
+  localgitstore=$(canonical_path "$TRASHDIR/$reponame/.git")
+  lfsstorage=$(canonical_path "$TRASHDIR/$reponame/.git/lfs")
+  localmedia=$(canonical_path "$TRASHDIR/$reponame/.git/lfs/objects")
+  tempdir=$(canonical_path "$TRASHDIR/$reponame/.git/lfs/tmp")
   envVars=$(printf "%s" "$(env | grep "^GIT")")
 
   expected=$(printf '%s
@@ -31,7 +37,7 @@ LocalGitStorageDir=%s
 LocalMediaDir=%s
 LocalReferenceDirs=
 TempDir=%s
-ConcurrentTransfers=3
+ConcurrentTransfers=8
 TusTransfers=false
 BasicTransfersOnly=false
 SkipDownloadErrors=false
@@ -45,8 +51,8 @@ PruneRemoteName=origin
 LfsStorageDir=%s
 AccessDownload=none
 AccessUpload=none
-DownloadTransfers=basic
-UploadTransfers=basic
+DownloadTransfers=basic,lfs-standalone-file
+UploadTransfers=basic,lfs-standalone-file
 %s
 %s
 ' "$(git lfs version)" "$(git version)" "$localwd" "$localgit" "$localgitstore" "$localmedia" "$tempdir" "$lfsstorage" "$envVars" "$envInitConfig")
@@ -60,18 +66,19 @@ begin_test "env with origin remote"
 (
   set -e
   reponame="env-origin-remote"
+  unset_vars
   mkdir $reponame
   cd $reponame
   git init
   git remote add origin "$GITSERVER/env-origin-remote"
 
   endpoint="$GITSERVER/$reponame.git/info/lfs (auth=none)"
-  localwd=$(native_path "$TRASHDIR/$reponame")
-  localgit=$(native_path "$TRASHDIR/$reponame/.git")
-  localgitstore=$(native_path "$TRASHDIR/$reponame/.git")
-  lfsstorage=$(native_path "$TRASHDIR/$reponame/.git/lfs")
-  localmedia=$(native_path "$TRASHDIR/$reponame/.git/lfs/objects")
-  tempdir=$(native_path "$TRASHDIR/$reponame/.git/lfs/tmp")
+  localwd=$(canonical_path "$TRASHDIR/$reponame")
+  localgit=$(canonical_path "$TRASHDIR/$reponame/.git")
+  localgitstore=$(canonical_path "$TRASHDIR/$reponame/.git")
+  lfsstorage=$(canonical_path "$TRASHDIR/$reponame/.git/lfs")
+  localmedia=$(canonical_path "$TRASHDIR/$reponame/.git/lfs/objects")
+  tempdir=$(canonical_path "$TRASHDIR/$reponame/.git/lfs/tmp")
   envVars=$(printf "%s" "$(env | grep "^GIT")")
   expected=$(printf '%s
 %s
@@ -83,7 +90,7 @@ LocalGitStorageDir=%s
 LocalMediaDir=%s
 LocalReferenceDirs=
 TempDir=%s
-ConcurrentTransfers=3
+ConcurrentTransfers=8
 TusTransfers=false
 BasicTransfersOnly=false
 SkipDownloadErrors=false
@@ -97,8 +104,8 @@ PruneRemoteName=origin
 LfsStorageDir=%s
 AccessDownload=none
 AccessUpload=none
-DownloadTransfers=basic
-UploadTransfers=basic
+DownloadTransfers=basic,lfs-standalone-file
+UploadTransfers=basic,lfs-standalone-file
 %s
 %s
 ' "$(git lfs version)" "$(git version)" "$endpoint" "$localwd" "$localgit" "$localgitstore" "$localmedia" "$tempdir" "$lfsstorage" "$envVars" "$envInitConfig")
@@ -116,6 +123,7 @@ begin_test "env with multiple remotes"
 (
   set -e
   reponame="env-multiple-remotes"
+  unset_vars
   mkdir $reponame
   cd $reponame
   git init
@@ -124,12 +132,12 @@ begin_test "env with multiple remotes"
 
   endpoint="$GITSERVER/env-origin-remote.git/info/lfs (auth=none)"
   endpoint2="$GITSERVER/env-other-remote.git/info/lfs (auth=none)"
-  localwd=$(native_path "$TRASHDIR/$reponame")
-  localgit=$(native_path "$TRASHDIR/$reponame/.git")
-  localgitstore=$(native_path "$TRASHDIR/$reponame/.git")
-  lfsstorage=$(native_path "$TRASHDIR/$reponame/.git/lfs")
-  localmedia=$(native_path "$TRASHDIR/$reponame/.git/lfs/objects")
-  tempdir=$(native_path "$TRASHDIR/$reponame/.git/lfs/tmp")
+  localwd=$(canonical_path "$TRASHDIR/$reponame")
+  localgit=$(canonical_path "$TRASHDIR/$reponame/.git")
+  localgitstore=$(canonical_path "$TRASHDIR/$reponame/.git")
+  lfsstorage=$(canonical_path "$TRASHDIR/$reponame/.git/lfs")
+  localmedia=$(canonical_path "$TRASHDIR/$reponame/.git/lfs/objects")
+  tempdir=$(canonical_path "$TRASHDIR/$reponame/.git/lfs/tmp")
   envVars=$(printf "%s" "$(env | grep "^GIT")")
   expected=$(printf '%s
 %s
@@ -142,7 +150,7 @@ LocalGitStorageDir=%s
 LocalMediaDir=%s
 LocalReferenceDirs=
 TempDir=%s
-ConcurrentTransfers=3
+ConcurrentTransfers=8
 TusTransfers=false
 BasicTransfersOnly=false
 SkipDownloadErrors=false
@@ -156,8 +164,8 @@ PruneRemoteName=origin
 LfsStorageDir=%s
 AccessDownload=none
 AccessUpload=none
-DownloadTransfers=basic
-UploadTransfers=basic
+DownloadTransfers=basic,lfs-standalone-file
+UploadTransfers=basic,lfs-standalone-file
 %s
 %s
 ' "$(git lfs version)" "$(git version)" "$endpoint" "$endpoint2" "$localwd" "$localgit" "$localgitstore" "$localmedia" "$tempdir" "$lfsstorage" "$envVars" "$envInitConfig")
@@ -175,18 +183,19 @@ begin_test "env with other remote"
 (
   set -e
   reponame="env-other-remote"
+  unset_vars
   mkdir $reponame
   cd $reponame
   git init
   git remote add other "$GITSERVER/env-other-remote"
 
   endpoint="$GITSERVER/env-other-remote.git/info/lfs (auth=none)"
-  localwd=$(native_path "$TRASHDIR/$reponame")
-  localgit=$(native_path "$TRASHDIR/$reponame/.git")
-  localgitstore=$(native_path "$TRASHDIR/$reponame/.git")
-  lfsstorage=$(native_path "$TRASHDIR/$reponame/.git/lfs")
-  localmedia=$(native_path "$TRASHDIR/$reponame/.git/lfs/objects")
-  tempdir=$(native_path "$TRASHDIR/$reponame/.git/lfs/tmp")
+  localwd=$(canonical_path "$TRASHDIR/$reponame")
+  localgit=$(canonical_path "$TRASHDIR/$reponame/.git")
+  localgitstore=$(canonical_path "$TRASHDIR/$reponame/.git")
+  lfsstorage=$(canonical_path "$TRASHDIR/$reponame/.git/lfs")
+  localmedia=$(canonical_path "$TRASHDIR/$reponame/.git/lfs/objects")
+  tempdir=$(canonical_path "$TRASHDIR/$reponame/.git/lfs/tmp")
   envVars=$(printf "%s" "$(env | grep "^GIT")")
 
   expected=$(printf '%s
@@ -199,7 +208,7 @@ LocalGitStorageDir=%s
 LocalMediaDir=%s
 LocalReferenceDirs=
 TempDir=%s
-ConcurrentTransfers=3
+ConcurrentTransfers=8
 TusTransfers=false
 BasicTransfersOnly=false
 SkipDownloadErrors=false
@@ -213,8 +222,8 @@ PruneRemoteName=origin
 LfsStorageDir=%s
 AccessDownload=none
 AccessUpload=none
-DownloadTransfers=basic
-UploadTransfers=basic
+DownloadTransfers=basic,lfs-standalone-file
+UploadTransfers=basic,lfs-standalone-file
 %s
 %s
 ' "$(git lfs version)" "$(git version)" "$endpoint" "$localwd" "$localgit" "$localgitstore" "$localmedia" "$tempdir" "$lfsstorage" "$envVars" "$envInitConfig")
@@ -232,6 +241,7 @@ begin_test "env with multiple remotes and lfs.url config"
 (
   set -e
   reponame="env-multiple-remotes-with-lfs-url"
+  unset_vars
   mkdir $reponame
   cd $reponame
   git init
@@ -239,12 +249,12 @@ begin_test "env with multiple remotes and lfs.url config"
   git remote add other "$GITSERVER/env-other-remote"
   git config lfs.url "http://foo/bar"
 
-  localwd=$(native_path "$TRASHDIR/$reponame")
-  localgit=$(native_path "$TRASHDIR/$reponame/.git")
-  localgitstore=$(native_path "$TRASHDIR/$reponame/.git")
-  lfsstorage=$(native_path "$TRASHDIR/$reponame/.git/lfs")
-  localmedia=$(native_path "$TRASHDIR/$reponame/.git/lfs/objects")
-  tempdir=$(native_path "$TRASHDIR/$reponame/.git/lfs/tmp")
+  localwd=$(canonical_path "$TRASHDIR/$reponame")
+  localgit=$(canonical_path "$TRASHDIR/$reponame/.git")
+  localgitstore=$(canonical_path "$TRASHDIR/$reponame/.git")
+  lfsstorage=$(canonical_path "$TRASHDIR/$reponame/.git/lfs")
+  localmedia=$(canonical_path "$TRASHDIR/$reponame/.git/lfs/objects")
+  tempdir=$(canonical_path "$TRASHDIR/$reponame/.git/lfs/tmp")
   envVars=$(printf "%s" "$(env | grep "^GIT")")
   expected=$(printf '%s
 %s
@@ -257,7 +267,7 @@ LocalGitStorageDir=%s
 LocalMediaDir=%s
 LocalReferenceDirs=
 TempDir=%s
-ConcurrentTransfers=3
+ConcurrentTransfers=8
 TusTransfers=false
 BasicTransfersOnly=false
 SkipDownloadErrors=false
@@ -271,8 +281,8 @@ PruneRemoteName=origin
 LfsStorageDir=%s
 AccessDownload=none
 AccessUpload=none
-DownloadTransfers=basic
-UploadTransfers=basic
+DownloadTransfers=basic,lfs-standalone-file
+UploadTransfers=basic,lfs-standalone-file
 %s
 %s
 ' "$(git lfs version)" "$(git version)" "$localwd" "$localgit" "$localgitstore" "$localmedia" "$tempdir" "$lfsstorage" "$envVars" "$envInitConfig")
@@ -290,6 +300,7 @@ begin_test "env with multiple remotes and lfs configs"
 (
   set -e
   reponame="env-multiple-remotes-lfs-configs"
+  unset_vars
   mkdir $reponame
   cd $reponame
   git init
@@ -299,12 +310,12 @@ begin_test "env with multiple remotes and lfs configs"
   git config remote.origin.lfsurl "http://custom/origin"
   git config remote.other.lfsurl "http://custom/other"
 
-  localwd=$(native_path "$TRASHDIR/$reponame")
-  localgit=$(native_path "$TRASHDIR/$reponame/.git")
-  localgitstore=$(native_path "$TRASHDIR/$reponame/.git")
-  lfsstorage=$(native_path "$TRASHDIR/$reponame/.git/lfs")
-  localmedia=$(native_path "$TRASHDIR/$reponame/.git/lfs/objects")
-  tempdir=$(native_path "$TRASHDIR/$reponame/.git/lfs/tmp")
+  localwd=$(canonical_path "$TRASHDIR/$reponame")
+  localgit=$(canonical_path "$TRASHDIR/$reponame/.git")
+  localgitstore=$(canonical_path "$TRASHDIR/$reponame/.git")
+  lfsstorage=$(canonical_path "$TRASHDIR/$reponame/.git/lfs")
+  localmedia=$(canonical_path "$TRASHDIR/$reponame/.git/lfs/objects")
+  tempdir=$(canonical_path "$TRASHDIR/$reponame/.git/lfs/tmp")
   envVars=$(printf "%s" "$(env | grep "^GIT")")
   expected=$(printf '%s
 %s
@@ -317,7 +328,7 @@ LocalGitStorageDir=%s
 LocalMediaDir=%s
 LocalReferenceDirs=
 TempDir=%s
-ConcurrentTransfers=3
+ConcurrentTransfers=8
 TusTransfers=false
 BasicTransfersOnly=false
 SkipDownloadErrors=false
@@ -331,8 +342,8 @@ PruneRemoteName=origin
 LfsStorageDir=%s
 AccessDownload=none
 AccessUpload=none
-DownloadTransfers=basic
-UploadTransfers=basic
+DownloadTransfers=basic,lfs-standalone-file
+UploadTransfers=basic,lfs-standalone-file
 %s
 %s
 ' "$(git lfs version)" "$(git version)" "$localwd" "$localgit" "$localgitstore" "$localmedia" "$tempdir" "$lfsstorage" "$envVars" "$envInitConfig")
@@ -350,6 +361,7 @@ begin_test "env with multiple remotes and batch configs"
 (
   set -e
   reponame="env-multiple-remotes-lfs-batch-configs"
+  unset_vars
   mkdir $reponame
   cd $reponame
   git init
@@ -359,12 +371,12 @@ begin_test "env with multiple remotes and batch configs"
   git config remote.origin.lfsurl "http://foo/bar"
   git config remote.other.lfsurl "http://custom/other"
 
-  localwd=$(native_path "$TRASHDIR/$reponame")
-  localgit=$(native_path "$TRASHDIR/$reponame/.git")
-  localgitstore=$(native_path "$TRASHDIR/$reponame/.git")
-  lfsstorage=$(native_path "$TRASHDIR/$reponame/.git/lfs")
-  localmedia=$(native_path "$TRASHDIR/$reponame/.git/lfs/objects")
-  tempdir=$(native_path "$TRASHDIR/$reponame/.git/lfs/tmp")
+  localwd=$(canonical_path "$TRASHDIR/$reponame")
+  localgit=$(canonical_path "$TRASHDIR/$reponame/.git")
+  localgitstore=$(canonical_path "$TRASHDIR/$reponame/.git")
+  lfsstorage=$(canonical_path "$TRASHDIR/$reponame/.git/lfs")
+  localmedia=$(canonical_path "$TRASHDIR/$reponame/.git/lfs/objects")
+  tempdir=$(canonical_path "$TRASHDIR/$reponame/.git/lfs/tmp")
   envVars=$(printf "%s" "$(env | grep "^GIT")")
   expected=$(printf '%s
 %s
@@ -391,8 +403,8 @@ PruneRemoteName=origin
 LfsStorageDir=%s
 AccessDownload=none
 AccessUpload=none
-DownloadTransfers=basic
-UploadTransfers=basic
+DownloadTransfers=basic,lfs-standalone-file
+UploadTransfers=basic,lfs-standalone-file
 %s
 %s
 ' "$(git lfs version)" "$(git version)" "$localwd" "$localgit" "$localgitstore" "$localmedia" "$tempdir" "$lfsstorage" "$envVars" "$envInitConfig")
@@ -410,6 +422,7 @@ begin_test "env with .lfsconfig"
 (
   set -e
   reponame="env-with-lfsconfig"
+  unset_vars
 
   git init $reponame
   cd $reponame
@@ -428,12 +441,12 @@ lfsurl = http://foobar:5050/
 concurrenttransfers = 50
 ' > .gitconfig
 
-  localwd=$(native_path "$TRASHDIR/$reponame")
-  localgit=$(native_path "$TRASHDIR/$reponame/.git")
-  localgitstore=$(native_path "$TRASHDIR/$reponame/.git")
-  lfsstorage=$(native_path "$TRASHDIR/$reponame/.git/lfs")
-  localmedia=$(native_path "$TRASHDIR/$reponame/.git/lfs/objects")
-  tempdir=$(native_path "$TRASHDIR/$reponame/.git/lfs/tmp")
+  localwd=$(canonical_path "$TRASHDIR/$reponame")
+  localgit=$(canonical_path "$TRASHDIR/$reponame/.git")
+  localgitstore=$(canonical_path "$TRASHDIR/$reponame/.git")
+  lfsstorage=$(canonical_path "$TRASHDIR/$reponame/.git/lfs")
+  localmedia=$(canonical_path "$TRASHDIR/$reponame/.git/lfs/objects")
+  tempdir=$(canonical_path "$TRASHDIR/$reponame/.git/lfs/tmp")
   envVars=$(printf "%s" "$(env | grep "^GIT")")
   expected=$(printf '%s
 %s
@@ -445,7 +458,7 @@ LocalGitStorageDir=%s
 LocalMediaDir=%s
 LocalReferenceDirs=
 TempDir=%s
-ConcurrentTransfers=3
+ConcurrentTransfers=8
 TusTransfers=false
 BasicTransfersOnly=false
 SkipDownloadErrors=false
@@ -459,8 +472,8 @@ PruneRemoteName=origin
 LfsStorageDir=%s
 AccessDownload=none
 AccessUpload=none
-DownloadTransfers=basic
-UploadTransfers=basic
+DownloadTransfers=basic,lfs-standalone-file
+UploadTransfers=basic,lfs-standalone-file
 %s
 %s
 ' "$(git lfs version)" "$(git version)" "$localwd" "$localgit" "$localgitstore" "$localmedia" "$tempdir" "$lfsstorage" "$envVars" "$envInitConfig")
@@ -478,18 +491,19 @@ begin_test "env with environment variables"
 (
   set -e
   reponame="env-with-envvars"
+  unset_vars
   git init $reponame
   mkdir -p $reponame/a/b/c
 
-  gitDir=$(native_path "$TRASHDIR/$reponame/.git")
-  workTree=$(native_path "$TRASHDIR/$reponame/a/b")
+  gitDir=$(canonical_path "$TRASHDIR/$reponame/.git")
+  workTree=$(canonical_path "$TRASHDIR/$reponame/a/b")
 
-  localwd=$(native_path "$TRASHDIR/$reponame/a/b")
-  localgit=$(native_path "$TRASHDIR/$reponame/.git")
-  localgitstore=$(native_path "$TRASHDIR/$reponame/.git")
-  lfsstorage=$(native_path "$TRASHDIR/$reponame/.git/lfs")
-  localmedia=$(native_path "$TRASHDIR/$reponame/.git/lfs/objects")
-  tempdir=$(native_path "$TRASHDIR/$reponame/.git/lfs/tmp")
+  localwd=$(canonical_path "$TRASHDIR/$reponame/a/b")
+  localgit=$(canonical_path "$TRASHDIR/$reponame/.git")
+  localgitstore=$(canonical_path "$TRASHDIR/$reponame/.git")
+  lfsstorage=$(canonical_path "$TRASHDIR/$reponame/.git/lfs")
+  localmedia=$(canonical_path "$TRASHDIR/$reponame/.git/lfs/objects")
+  tempdir=$(canonical_path "$TRASHDIR/$reponame/.git/lfs/tmp")
   envVars="$(GIT_DIR=$gitDir GIT_WORK_TREE=$workTree env | grep "^GIT" | sort)"
   expected=$(printf '%s
 %s
@@ -500,7 +514,7 @@ LocalGitStorageDir=%s
 LocalMediaDir=%s
 LocalReferenceDirs=
 TempDir=%s
-ConcurrentTransfers=3
+ConcurrentTransfers=8
 TusTransfers=false
 BasicTransfersOnly=false
 SkipDownloadErrors=false
@@ -514,8 +528,8 @@ PruneRemoteName=origin
 LfsStorageDir=%s
 AccessDownload=none
 AccessUpload=none
-DownloadTransfers=basic
-UploadTransfers=basic
+DownloadTransfers=basic,lfs-standalone-file
+UploadTransfers=basic,lfs-standalone-file
 %s
 %s
 ' "$(git lfs version)" "$(git version)" "$localwd" "$localgit" "$localgitstore" "$localmedia" "$tempdir" "$lfsstorage" "$envVars" "$envInitConfig")
@@ -554,7 +568,7 @@ LocalGitStorageDir=
 LocalMediaDir=%s
 LocalReferenceDirs=
 TempDir=%s
-ConcurrentTransfers=3
+ConcurrentTransfers=8
 TusTransfers=false
 BasicTransfersOnly=false
 SkipDownloadErrors=false
@@ -568,8 +582,8 @@ PruneRemoteName=origin
 LfsStorageDir=lfs
 AccessDownload=none
 AccessUpload=none
-DownloadTransfers=basic
-UploadTransfers=basic
+DownloadTransfers=basic,lfs-standalone-file
+UploadTransfers=basic,lfs-standalone-file
 %s
 git config filter.lfs.process = ""
 git config filter.lfs.smudge = ""
@@ -590,7 +604,7 @@ LocalGitStorageDir=%s
 LocalMediaDir=%s
 LocalReferenceDirs=
 TempDir=%s
-ConcurrentTransfers=3
+ConcurrentTransfers=8
 TusTransfers=false
 BasicTransfersOnly=false
 SkipDownloadErrors=false
@@ -604,8 +618,8 @@ PruneRemoteName=origin
 LfsStorageDir=%s
 AccessDownload=none
 AccessUpload=none
-DownloadTransfers=basic
-UploadTransfers=basic
+DownloadTransfers=basic,lfs-standalone-file
+UploadTransfers=basic,lfs-standalone-file
 %s
 %s
 ' "$(git lfs version)" "$(git version)" "$localwd" "$localgit" "$localgitstore" "$localmedia" "$tempdir" "$lfsstorage" "$envVars" "$envInitConfig")
@@ -623,7 +637,7 @@ LocalGitStorageDir=%s
 LocalMediaDir=%s
 LocalReferenceDirs=
 TempDir=%s
-ConcurrentTransfers=3
+ConcurrentTransfers=8
 TusTransfers=false
 BasicTransfersOnly=false
 SkipDownloadErrors=false
@@ -637,8 +651,8 @@ PruneRemoteName=origin
 LfsStorageDir=%s
 AccessDownload=none
 AccessUpload=none
-DownloadTransfers=basic
-UploadTransfers=basic
+DownloadTransfers=basic,lfs-standalone-file
+UploadTransfers=basic,lfs-standalone-file
 %s
 %s
 ' "$(git lfs version)" "$(git version)" "$localwd" "$localgit" "$localgitstore" "$localmedia" "$tempdir" "$lfsstorage" "$envVars" "$envInitConfig")
@@ -651,14 +665,15 @@ begin_test "env with bare repo"
 (
   set -e
   reponame="env-with-bare-repo"
+  unset_vars
   git init --bare $reponame
   cd $reponame
 
-  localgit=$(native_path "$TRASHDIR/$reponame")
-  localgitstore=$(native_path "$TRASHDIR/$reponame")
-  lfsstorage=$(native_path "$TRASHDIR/$reponame/lfs")
-  localmedia=$(native_path "$TRASHDIR/$reponame/lfs/objects")
-  tempdir=$(native_path "$TRASHDIR/$reponame/lfs/tmp")
+  localgit=$(canonical_path "$TRASHDIR/$reponame")
+  localgitstore=$(canonical_path "$TRASHDIR/$reponame")
+  lfsstorage=$(canonical_path "$TRASHDIR/$reponame/lfs")
+  localmedia=$(canonical_path "$TRASHDIR/$reponame/lfs/objects")
+  tempdir=$(canonical_path "$TRASHDIR/$reponame/lfs/tmp")
   envVars=$(printf "%s" "$(env | grep "^GIT")")
 
   expected=$(printf "%s\n%s\n
@@ -668,7 +683,7 @@ LocalGitStorageDir=%s
 LocalMediaDir=%s
 LocalReferenceDirs=
 TempDir=%s
-ConcurrentTransfers=3
+ConcurrentTransfers=8
 TusTransfers=false
 BasicTransfersOnly=false
 SkipDownloadErrors=false
@@ -682,8 +697,8 @@ PruneRemoteName=origin
 LfsStorageDir=%s
 AccessDownload=none
 AccessUpload=none
-DownloadTransfers=basic
-UploadTransfers=basic
+DownloadTransfers=basic,lfs-standalone-file
+UploadTransfers=basic,lfs-standalone-file
 %s
 %s
 " "$(git lfs version)" "$(git version)" "$localgit" "$localgitstore" "$localmedia" "$tempdir" "$lfsstorage" "$envVars" "$envInitConfig")
@@ -697,6 +712,7 @@ begin_test "env with multiple ssh remotes"
 (
   set -e
   reponame="env-with-ssh"
+  unset_vars
   mkdir $reponame
   cd $reponame
   git init
@@ -723,19 +739,19 @@ begin_test "env with skip download errors"
 
   git config lfs.skipdownloaderrors 1
 
-  localgit=$(native_path "$TRASHDIR/$reponame")
-  localgitstore=$(native_path "$TRASHDIR/$reponame")
-  lfsstorage=$(native_path "$TRASHDIR/$reponame/lfs")
-  localmedia=$(native_path "$TRASHDIR/$reponame/lfs/objects")
-  tempdir=$(native_path "$TRASHDIR/$reponame/lfs/tmp")
+  localgit=$(canonical_path "$TRASHDIR/$reponame")
+  localgitstore=$(canonical_path "$TRASHDIR/$reponame")
+  lfsstorage=$(canonical_path "$TRASHDIR/$reponame/lfs")
+  localmedia=$(canonical_path "$TRASHDIR/$reponame/lfs/objects")
+  tempdir=$(canonical_path "$TRASHDIR/$reponame/lfs/tmp")
   envVars=$(printf "%s" "$(env | grep "^GIT")")
 
-  localwd=$(native_path "$TRASHDIR/$reponame")
-  localgit=$(native_path "$TRASHDIR/$reponame/.git")
-  localgitstore=$(native_path "$TRASHDIR/$reponame/.git")
-  lfsstorage=$(native_path "$TRASHDIR/$reponame/.git/lfs")
-  localmedia=$(native_path "$TRASHDIR/$reponame/.git/lfs/objects")
-  tempdir=$(native_path "$TRASHDIR/$reponame/.git/lfs/tmp")
+  localwd=$(canonical_path "$TRASHDIR/$reponame")
+  localgit=$(canonical_path "$TRASHDIR/$reponame/.git")
+  localgitstore=$(canonical_path "$TRASHDIR/$reponame/.git")
+  lfsstorage=$(canonical_path "$TRASHDIR/$reponame/.git/lfs")
+  localmedia=$(canonical_path "$TRASHDIR/$reponame/.git/lfs/objects")
+  tempdir=$(canonical_path "$TRASHDIR/$reponame/.git/lfs/tmp")
   envVars=$(printf "%s" "$(env | grep "^GIT")")
 
   expectedenabled=$(printf '%s
@@ -747,7 +763,7 @@ LocalGitStorageDir=%s
 LocalMediaDir=%s
 LocalReferenceDirs=
 TempDir=%s
-ConcurrentTransfers=3
+ConcurrentTransfers=8
 TusTransfers=false
 BasicTransfersOnly=false
 SkipDownloadErrors=true
@@ -761,8 +777,8 @@ PruneRemoteName=origin
 LfsStorageDir=%s
 AccessDownload=none
 AccessUpload=none
-DownloadTransfers=basic
-UploadTransfers=basic
+DownloadTransfers=basic,lfs-standalone-file
+UploadTransfers=basic,lfs-standalone-file
 %s
 %s
 ' "$(git lfs version)" "$(git version)" "$localwd" "$localgit" "$localgitstore" "$localmedia" "$tempdir" "$lfsstorage" "$envVars" "$envInitConfig")
@@ -780,7 +796,7 @@ LocalGitStorageDir=%s
 LocalMediaDir=%s
 LocalReferenceDirs=
 TempDir=%s
-ConcurrentTransfers=3
+ConcurrentTransfers=8
 TusTransfers=false
 BasicTransfersOnly=false
 SkipDownloadErrors=false
@@ -794,8 +810,8 @@ PruneRemoteName=origin
 LfsStorageDir=%s
 AccessDownload=none
 AccessUpload=none
-DownloadTransfers=basic
-UploadTransfers=basic
+DownloadTransfers=basic,lfs-standalone-file
+UploadTransfers=basic,lfs-standalone-file
 %s
 %s
 ' "$(git lfs version)" "$(git version)" "$localwd" "$localgit" "$localgitstore" "$localmedia" "$tempdir" "$lfsstorage" "$envVars" "$envInitConfig")
@@ -813,7 +829,7 @@ LocalGitStorageDir=%s
 LocalMediaDir=%s
 LocalReferenceDirs=
 TempDir=%s
-ConcurrentTransfers=3
+ConcurrentTransfers=8
 TusTransfers=false
 BasicTransfersOnly=false
 SkipDownloadErrors=true
@@ -827,8 +843,8 @@ PruneRemoteName=origin
 LfsStorageDir=%s
 AccessDownload=none
 AccessUpload=none
-DownloadTransfers=basic
-UploadTransfers=basic
+DownloadTransfers=basic,lfs-standalone-file
+UploadTransfers=basic,lfs-standalone-file
 %s
 %s
 ' "$(git lfs version)" "$(git version)" "$localwd" "$localgit" "$localgitstore" "$localmedia" "$tempdir" "$lfsstorage" "$envVarsEnabled" "$envInitConfig")
@@ -845,25 +861,26 @@ begin_test "env with extra transfer methods"
 (
   set -e
   reponame="env-with-transfers"
+  unset_vars
   git init $reponame
   cd $reponame
 
   git config lfs.tustransfers true
   git config lfs.customtransfer.supertransfer.path /path/to/something
 
-  localgit=$(native_path "$TRASHDIR/$reponame")
-  localgitstore=$(native_path "$TRASHDIR/$reponame")
-  lfsstorage=$(native_path "$TRASHDIR/$reponame/lfs")
-  localmedia=$(native_path "$TRASHDIR/$reponame/lfs/objects")
-  tempdir=$(native_path "$TRASHDIR/$reponame/lfs/tmp")
+  localgit=$(canonical_path "$TRASHDIR/$reponame")
+  localgitstore=$(canonical_path "$TRASHDIR/$reponame")
+  lfsstorage=$(canonical_path "$TRASHDIR/$reponame/lfs")
+  localmedia=$(canonical_path "$TRASHDIR/$reponame/lfs/objects")
+  tempdir=$(canonical_path "$TRASHDIR/$reponame/lfs/tmp")
   envVars=$(printf "%s" "$(env | grep "^GIT")")
 
-  localwd=$(native_path "$TRASHDIR/$reponame")
-  localgit=$(native_path "$TRASHDIR/$reponame/.git")
-  localgitstore=$(native_path "$TRASHDIR/$reponame/.git")
-  lfsstorage=$(native_path "$TRASHDIR/$reponame/.git/lfs")
-  localmedia=$(native_path "$TRASHDIR/$reponame/.git/lfs/objects")
-  tempdir=$(native_path "$TRASHDIR/$reponame/.git/lfs/tmp")
+  localwd=$(canonical_path "$TRASHDIR/$reponame")
+  localgit=$(canonical_path "$TRASHDIR/$reponame/.git")
+  localgitstore=$(canonical_path "$TRASHDIR/$reponame/.git")
+  lfsstorage=$(canonical_path "$TRASHDIR/$reponame/.git/lfs")
+  localmedia=$(canonical_path "$TRASHDIR/$reponame/.git/lfs/objects")
+  tempdir=$(canonical_path "$TRASHDIR/$reponame/.git/lfs/tmp")
   envVars=$(printf "%s" "$(env | grep "^GIT")")
 
   expectedenabled=$(printf '%s
@@ -875,7 +892,7 @@ LocalGitStorageDir=%s
 LocalMediaDir=%s
 LocalReferenceDirs=
 TempDir=%s
-ConcurrentTransfers=3
+ConcurrentTransfers=8
 TusTransfers=true
 BasicTransfersOnly=false
 SkipDownloadErrors=false
@@ -889,8 +906,8 @@ PruneRemoteName=origin
 LfsStorageDir=%s
 AccessDownload=none
 AccessUpload=none
-DownloadTransfers=basic,supertransfer
-UploadTransfers=basic,supertransfer,tus
+DownloadTransfers=basic,lfs-standalone-file,supertransfer
+UploadTransfers=basic,lfs-standalone-file,supertransfer,tus
 %s
 %s
 ' "$(git lfs version)" "$(git version)" "$localwd" "$localgit" "$localgitstore" "$localmedia" "$tempdir" "$lfsstorage" "$envVars" "$envInitConfig")
@@ -904,6 +921,7 @@ begin_test "env with multiple remotes and ref"
 (
   set -e
   reponame="env-multiple-remotes-ref"
+  unset_vars
   mkdir $reponame
   cd $reponame
   git init
@@ -916,12 +934,12 @@ begin_test "env with multiple remotes and ref"
 
   endpoint="$GITSERVER/env-origin-remote.git/info/lfs (auth=none)"
   endpoint2="$GITSERVER/env-other-remote.git/info/lfs (auth=none)"
-  localwd=$(native_path "$TRASHDIR/$reponame")
-  localgit=$(native_path "$TRASHDIR/$reponame/.git")
-  localgitstore=$(native_path "$TRASHDIR/$reponame/.git")
-  lfsstorage=$(native_path "$TRASHDIR/$reponame/.git/lfs")
-  localmedia=$(native_path "$TRASHDIR/$reponame/.git/lfs/objects")
-  tempdir=$(native_path "$TRASHDIR/$reponame/.git/lfs/tmp")
+  localwd=$(canonical_path "$TRASHDIR/$reponame")
+  localgit=$(canonical_path "$TRASHDIR/$reponame/.git")
+  localgitstore=$(canonical_path "$TRASHDIR/$reponame/.git")
+  lfsstorage=$(canonical_path "$TRASHDIR/$reponame/.git/lfs")
+  localmedia=$(canonical_path "$TRASHDIR/$reponame/.git/lfs/objects")
+  tempdir=$(canonical_path "$TRASHDIR/$reponame/.git/lfs/tmp")
   envVars=$(printf "%s" "$(env | grep "^GIT")")
   expected=$(printf '%s
 %s
@@ -934,7 +952,7 @@ LocalGitStorageDir=%s
 LocalMediaDir=%s
 LocalReferenceDirs=
 TempDir=%s
-ConcurrentTransfers=3
+ConcurrentTransfers=8
 TusTransfers=false
 BasicTransfersOnly=false
 SkipDownloadErrors=false
@@ -948,8 +966,73 @@ PruneRemoteName=origin
 LfsStorageDir=%s
 AccessDownload=none
 AccessUpload=none
-DownloadTransfers=basic
-UploadTransfers=basic
+DownloadTransfers=basic,lfs-standalone-file
+UploadTransfers=basic,lfs-standalone-file
+%s
+%s
+' "$(git lfs version)" "$(git version)" "$endpoint" "$endpoint2" "$localwd" "$localgit" "$localgitstore" "$localmedia" "$tempdir" "$lfsstorage" "$envVars" "$envInitConfig")
+  actual=$(git lfs env | grep -v "^GIT_EXEC_PATH=")
+  contains_same_elements "$expected" "$actual"
+)
+end_test
+
+
+begin_test "env with unicode"
+(
+  set -e
+  # This contains a Unicode apostrophe, an E with grave accent, and a Euro sign.
+  # Only the middle one is representable in ISO-8859-1.
+  reponame="env-d’autre-nom-très-bizarr€"
+  unset_vars
+  mkdir $reponame
+  cd $reponame
+  git init
+  git remote add origin "$GITSERVER/env-origin-remote"
+  git remote add other "$GITSERVER/env-other-remote"
+
+  touch a.txt
+  git add a.txt
+  git commit -m "initial commit"
+
+  # Set by the testsuite.
+  unset LC_ALL
+
+  endpoint="$GITSERVER/env-origin-remote.git/info/lfs (auth=none)"
+  endpoint2="$GITSERVER/env-other-remote.git/info/lfs (auth=none)"
+  localwd=$(canonical_path "$TRASHDIR/$reponame")
+  localgit=$(canonical_path "$TRASHDIR/$reponame/.git")
+  localgitstore=$(canonical_path "$TRASHDIR/$reponame/.git")
+  lfsstorage=$(canonical_path "$TRASHDIR/$reponame/.git/lfs")
+  localmedia=$(canonical_path "$TRASHDIR/$reponame/.git/lfs/objects")
+  tempdir=$(canonical_path "$TRASHDIR/$reponame/.git/lfs/tmp")
+  envVars=$(printf "%s" "$(env | grep "^GIT")")
+  expected=$(printf '%s
+%s
+
+Endpoint=%s
+Endpoint (other)=%s
+LocalWorkingDir=%s
+LocalGitDir=%s
+LocalGitStorageDir=%s
+LocalMediaDir=%s
+LocalReferenceDirs=
+TempDir=%s
+ConcurrentTransfers=8
+TusTransfers=false
+BasicTransfersOnly=false
+SkipDownloadErrors=false
+FetchRecentAlways=false
+FetchRecentRefsDays=7
+FetchRecentCommitsDays=0
+FetchRecentRefsIncludeRemotes=true
+PruneOffsetDays=3
+PruneVerifyRemoteAlways=false
+PruneRemoteName=origin
+LfsStorageDir=%s
+AccessDownload=none
+AccessUpload=none
+DownloadTransfers=basic,lfs-standalone-file
+UploadTransfers=basic,lfs-standalone-file
 %s
 %s
 ' "$(git lfs version)" "$(git version)" "$endpoint" "$endpoint2" "$localwd" "$localgit" "$localgitstore" "$localmedia" "$tempdir" "$lfsstorage" "$envVars" "$envInitConfig")

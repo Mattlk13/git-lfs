@@ -1,3 +1,4 @@
+#!/usr/bin/env ruby
 # Pushes all deb and rpm files from ./repos to PackageCloud.
 
 packagecloud_user = ENV["PACKAGECLOUD_USER"] || "github"
@@ -26,46 +27,34 @@ $client = Packagecloud::Client.new(credentials)
 # https://packagecloud.io/docs#os_distro_version
 $distro_name_map = {
   # RHEL EOL https://access.redhat.com/support/policy/updates/errata
-  "centos/5" => [
-    "el/5" # End of Extended Support November 30, 2020
-  ],
-  "centos/6" => [
-    "el/6" # End of Extended Support June 30, 2024
-  ],
   "centos/7" => [
     "el/7",
-    #"el/8", # BOL ~2019-2020?
+    "scientific/7",
     # Fedora EOL check https://fedoraproject.org/wiki/End_of_life
     # or https://en.wikipedia.org/wiki/Fedora_version_history#Version_history
-    "fedora/28", # EOL ~Oct 2019
     "fedora/29", # EOL ~2020
-    # "fedora/30", # BOL ~May 2019
+    "fedora/30", # EOL ~2020
     # opensuse https://en.opensuse.org/Lifetime
     # or https://en.wikipedia.org/wiki/OpenSUSE_version_history
-    "opensuse/42.3", # EOL 2019-06-30
-    "opensuse/15.0", # EOL 2019-11-25
     "opensuse/15.1", # EOL 2020-11
     # SLES EOL https://www.suse.com/lifecycle/
     "sles/11.4", # LTSS ends 31 Mar 2022
-    "sles/12.0", # LTSS ends 01 July 2019
     "sles/12.1", # LTSS ends 31 May 2020
     "sles/12.2", # LTSS ends 31 Mar 2021
     "sles/12.3", # LTSS ends 30 Jun 2022
-    "sles/15.0"  # Current
+    "sles/12.4",
+    "sles/12.5",
+    "sles/15.0",
+    "sles/15.1",  # Current
+  ],
+  "centos/8" => [
+    "el/8",
+    "fedora/31", # EOL ~2021
+    "fedora/32",
   ],
   # Debian EOL https://wiki.debian.org/LTS/
   # Ubuntu EOL https://wiki.ubuntu.com/Releases
   # Mint EOL https://linuxmint.com/download_all.php
-  "debian/8" => [
-    "debian/jessie",     # EOL June 30, 2020
-    "linuxmint/qiana",   # EOL April 2019
-    "linuxmint/rafaela", # EOL April 2019
-    "linuxmint/rebecca", # EOL April 2019
-    "linuxmint/rosa",    # EOL April 2019
-    "ubuntu/trusty",     # ESM April 2022
-    "ubuntu/vivid",      # EOL February 4, 2016
-    "ubuntu/wily"        # EOL July 28, 2016
-  ],
   "debian/9" => [
     "debian/stretch",   # EOL June 2022
     "linuxmint/sarah",  # EOL April 2021
@@ -74,16 +63,16 @@ $distro_name_map = {
     "linuxmint/sylvia", # EOL April 2021
     "linuxmint/tara",   # EOL April 2023
     "linuxmint/tessa",  # EOL April 2023
+    "linuxmint/tina",   # EOL April 2023
+    "linuxmint/tricia", # EOL April 2023
     "ubuntu/xenial",    # ESM April 2024
-    "ubuntu/yakkety",   # EOL July 20, 2017
-    "ubuntu/zesty",     # EOL January 13, 2018
-    "ubuntu/artful",    # EOL July 19 2018
     "ubuntu/bionic",    # ESM April 2028
-    "ubuntu/cosmic",    # EOL July 2019
     "ubuntu/disco",     # EOL April 2020
   ],
   "debian/10" => [
     "debian/buster",    # Current
+    "ubuntu/eoan",      # EOL July 2020
+    "ubuntu/focal",     # Current
   ]
 }
 
@@ -133,6 +122,7 @@ package_files.each do |full_path|
   when /centos\/5/  then ["RPM RHEL 5/CentOS 5", "el/5"]
   when /centos\/6/  then ["RPM RHEL 6/CentOS 6", "el/6"]
   when /centos\/7/  then ["RPM RHEL 7/CentOS 7", "el/7"]
+  when /centos\/8/  then ["RPM RHEL 8/CentOS 8", "el/8"]
   end
 
   next unless os

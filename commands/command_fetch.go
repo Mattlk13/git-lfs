@@ -34,7 +34,7 @@ func getIncludeExcludeArgs(cmd *cobra.Command) (include, exclude *string) {
 }
 
 func fetchCommand(cmd *cobra.Command, args []string) {
-	requireInRepo()
+	setupRepository()
 
 	var refs []*git.Ref
 
@@ -60,15 +60,15 @@ func fetchCommand(cmd *cobra.Command, args []string) {
 	}
 
 	success := true
-	gitscanner := lfs.NewGitScanner(nil)
+	gitscanner := lfs.NewGitScanner(cfg, nil)
 	defer gitscanner.Close()
 
 	include, exclude := getIncludeExcludeArgs(cmd)
 	fetchPruneCfg := lfs.NewFetchPruneConfig(cfg.Git)
 
 	if fetchAllArg {
-		if fetchRecentArg || len(args) > 1 {
-			Exit("Cannot combine --all with ref arguments or --recent")
+		if fetchRecentArg {
+			Exit("Cannot combine --all with --recent")
 		}
 		if include != nil || exclude != nil {
 			Exit("Cannot combine --all with --include or --exclude")
@@ -76,10 +76,19 @@ func fetchCommand(cmd *cobra.Command, args []string) {
 		if len(cfg.FetchIncludePaths()) > 0 || len(cfg.FetchExcludePaths()) > 0 {
 			Print("Ignoring global include / exclude paths to fulfil --all")
 		}
-		success = fetchAll()
+
+		if len(args) > 1 {
+			refShas := make([]string, len(refs))
+			for _, ref := range refs {
+				refShas = append(refShas, ref.Sha)
+			}
+			success = fetchRefs(refShas)
+		} else {
+			success = fetchAll()
+		}
 
 	} else { // !all
-		filter := buildFilepathFilter(cfg, include, exclude)
+		filter := buildFilepathFilter(cfg, include, exclude, true)
 
 		// Fetch refs sequentially per arg order; duplicates in later refs will be ignored
 		for _, ref := range refs {
@@ -110,7 +119,7 @@ func fetchCommand(cmd *cobra.Command, args []string) {
 func pointersToFetchForRef(ref string, filter *filepathfilter.Filter) ([]*lfs.WrappedPointer, error) {
 	var pointers []*lfs.WrappedPointer
 	var multiErr error
-	tempgitscanner := lfs.NewGitScanner(func(p *lfs.WrappedPointer, err error) {
+	tempgitscanner := lfs.NewGitScanner(cfg, func(p *lfs.WrappedPointer, err error) {
 		if err != nil {
 			if multiErr != nil {
 				multiErr = fmt.Errorf("%v\n%v", multiErr, err)
@@ -142,12 +151,57 @@ func fetchRef(ref string, filter *filepathfilter.Filter) bool {
 	return fetchAndReportToChan(pointers, filter, nil)
 }
 
+func pointersToFetchForRefs(refs []string) ([]*lfs.WrappedPointer, error) {
+	// This could be a long process so use the chan version & report progress
+	task := tasklog.NewSimpleTask()
+	defer task.Complete()
+
+	logger := tasklog.NewLogger(OutputWriter,
+		tasklog.ForceProgress(cfg.ForceProgress()),
+	)
+	logger.Enqueue(task)
+	var numObjs int64
+
+	// use temp gitscanner to collect pointers
+	var pointers []*lfs.WrappedPointer
+	var multiErr error
+	tempgitscanner := lfs.NewGitScanner(cfg, func(p *lfs.WrappedPointer, err error) {
+		if err != nil {
+			if multiErr != nil {
+				multiErr = fmt.Errorf("%v\n%v", multiErr, err)
+			} else {
+				multiErr = err
+			}
+			return
+		}
+
+		numObjs++
+		task.Logf("fetch: %d object(s) found", numObjs)
+		pointers = append(pointers, p)
+	})
+
+	if err := tempgitscanner.ScanRefs(refs, nil, nil); err != nil {
+		return nil, err
+	}
+
+	tempgitscanner.Close()
+	return pointers, multiErr
+}
+
+func fetchRefs(refs []string) bool {
+	pointers, err := pointersToFetchForRefs(refs)
+	if err != nil {
+		Panic(err, "Could not scan for Git LFS files")
+	}
+	return fetchAndReportToChan(pointers, nil, nil)
+}
+
 // Fetch all previous versions of objects from since to ref (not including final state at ref)
 // So this will fetch all the '-' sides of the diff from since to ref
 func fetchPreviousVersions(ref string, since time.Time, filter *filepathfilter.Filter) bool {
 	var pointers []*lfs.WrappedPointer
 
-	tempgitscanner := lfs.NewGitScanner(func(p *lfs.WrappedPointer, err error) {
+	tempgitscanner := lfs.NewGitScanner(cfg, func(p *lfs.WrappedPointer, err error) {
 		if err != nil {
 			Panic(err, "Could not scan for Git LFS previous versions")
 			return
@@ -239,7 +293,7 @@ func scanAll() []*lfs.WrappedPointer {
 	// use temp gitscanner to collect pointers
 	var pointers []*lfs.WrappedPointer
 	var multiErr error
-	tempgitscanner := lfs.NewGitScanner(func(p *lfs.WrappedPointer, err error) {
+	tempgitscanner := lfs.NewGitScanner(cfg, func(p *lfs.WrappedPointer, err error) {
 		if err != nil {
 			if multiErr != nil {
 				multiErr = fmt.Errorf("%v\n%v", multiErr, err)

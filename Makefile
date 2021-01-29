@@ -47,6 +47,10 @@ GC_FLAGS = $(BUILTIN_GC_FLAGS) $(EXTRA_GC_FLAGS)
 
 ASM_FLAGS ?= all=-trimpath="$$HOME"
 
+# TRIMPATH contains arguments to be passed to go to strip paths on Go 1.13 and
+# newer.
+TRIMPATH ?= $(shell [ "$$($(GO) version | awk '{print $$3}' | sed -e 's/^[^.]*\.//;s/\..*$$//;')" -ge 13 ] && echo -trimpath)
+
 # RONN is the name of the 'ronn' program used to generate man pages.
 RONN ?= ronn
 # RONN_EXTRA_ARGS are extra arguments given to the $(RONN) program when invoked.
@@ -71,6 +75,27 @@ TAR_XFORM_CMD ?= $(shell tar --version | grep -q 'GNU tar' && echo 's')
 # CERT_SHA1 is the SHA-1 hash of the Windows code-signing cert to use.  The
 # actual signature is made with SHA-256.
 CERT_SHA1 ?= 824455beeb23fe270e756ca04ec8e902d19c62aa
+
+# CERT_FILE is the PKCS#12 file holding the certificate.
+CERT_FILE ?=
+
+# CERT_PASS is the password for the certificate.  It must not contain
+# double-quotes.
+CERT_PASS ?=
+
+# CERT_ARGS are additional arguments to pass when signing Windows binaries.
+ifneq ("$(CERT_FILE)$(CERT_PASS)","")
+CERT_ARGS ?= -f "$(CERT_FILE)" -p "$(CERT_PASS)"
+else
+CERT_ARGS ?= -sha1 $(CERT_SHA1)
+endif
+
+# DARWIN_CERT_ID is a portion of the common name of the signing certificatee.
+DARWIN_CERT_ID ?=
+
+# DARWIN_KEYCHAIN_ID is the name of the keychain (with suffix) where the
+# certificate is located.
+DARWIN_KEYCHAIN_ID ?= CI.keychain
 
 # SOURCES is a listing of all .go files in this and child directories, excluding
 # that in vendor.
@@ -143,15 +168,18 @@ BUILD = GOOS=$(1) GOARCH=$(2) \
 	-ldflags="$(LD_FLAGS)" \
 	-gcflags="$(GC_FLAGS)" \
 	-asmflags="$(ASM_FLAGS)" \
+	$(TRIMPATH) \
 	-o ./bin/git-lfs$(3) $(BUILD_MAIN)
 
 # BUILD_TARGETS is the set of all platforms and architectures that Git LFS is
 # built for.
 BUILD_TARGETS = \
 	bin/git-lfs-darwin-amd64 \
-	bin/git-lfs-darwin-386 \
+	bin/git-lfs-linux-arm \
 	bin/git-lfs-linux-arm64 \
 	bin/git-lfs-linux-amd64 \
+	bin/git-lfs-linux-ppc64le \
+	bin/git-lfs-linux-s390x \
 	bin/git-lfs-linux-386 \
 	bin/git-lfs-freebsd-amd64 \
 	bin/git-lfs-freebsd-386 \
@@ -184,12 +212,16 @@ all build : $(BUILD_TARGETS)
 # embeds the versioninfo into the binary.
 bin/git-lfs-darwin-amd64 : $(SOURCES) mangen
 	$(call BUILD,darwin,amd64,-darwin-amd64)
-bin/git-lfs-darwin-386 : $(SOURCES) mangen
-	$(call BUILD,darwin,386,-darwin-386)
+bin/git-lfs-linux-arm : $(SOURCES) mangen
+	GOARM=5 $(call BUILD,linux,arm,-linux-arm)
 bin/git-lfs-linux-arm64 : $(SOURCES) mangen
 	$(call BUILD,linux,arm64,-linux-arm64)
 bin/git-lfs-linux-amd64 : $(SOURCES) mangen
 	$(call BUILD,linux,amd64,-linux-amd64)
+bin/git-lfs-linux-ppc64le : $(SOURCES) mangen
+	$(call BUILD,linux,ppc64le,-linux-ppc64le)
+bin/git-lfs-linux-s390x : $(SOURCES) mangen
+	$(call BUILD,linux,s390x,-linux-s390x)
 bin/git-lfs-linux-386 : $(SOURCES) mangen
 	$(call BUILD,linux,386,-linux-386)
 bin/git-lfs-freebsd-amd64 : $(SOURCES) mangen
@@ -243,10 +275,12 @@ script/windows-installer/git-lfs-wizard-image.bmp
 #
 # 	make VERSION=my-version bin/releases/git-lfs-darwin-amd64-my-version.tar.gz
 RELEASE_TARGETS = \
-	bin/releases/git-lfs-darwin-amd64-$(VERSION).tar.gz \
-	bin/releases/git-lfs-darwin-386-$(VERSION).tar.gz \
+	bin/releases/git-lfs-darwin-amd64-$(VERSION).zip \
+	bin/releases/git-lfs-linux-arm-$(VERSION).tar.gz \
 	bin/releases/git-lfs-linux-arm64-$(VERSION).tar.gz \
 	bin/releases/git-lfs-linux-amd64-$(VERSION).tar.gz \
+	bin/releases/git-lfs-linux-ppc64le-$(VERSION).tar.gz \
+	bin/releases/git-lfs-linux-s390x-$(VERSION).tar.gz \
 	bin/releases/git-lfs-linux-386-$(VERSION).tar.gz \
 	bin/releases/git-lfs-freebsd-amd64-$(VERSION).tar.gz \
 	bin/releases/git-lfs-freebsd-386-$(VERSION).tar.gz \
@@ -256,7 +290,7 @@ RELEASE_TARGETS = \
 
 # RELEASE_INCLUDES are the names of additional files that are added to each
 # release artifact.
-RELEASE_INCLUDES = README.md CHANGELOG.md
+RELEASE_INCLUDES = README.md CHANGELOG.md man
 
 # release is a phony target that builds all of the release artifacts, and then
 # shows the SHA 256 signature of each.
@@ -269,7 +303,7 @@ release : $(RELEASE_TARGETS)
 	shasum -a 256 $(RELEASE_TARGETS)
 
 # bin/releases/git-lfs-%-$(VERSION).tar.gz generates a gzip-compressed TAR of
-# the non-Windows release artifacts.
+# the non-Windows and non-macOS release artifacts.
 #
 # It includes all of RELEASE_INCLUDES, as well as script/install.sh.
 bin/releases/git-lfs-%-$(VERSION).tar.gz : \
@@ -277,14 +311,30 @@ $(RELEASE_INCLUDES) bin/git-lfs-% script/install.sh
 	@mkdir -p bin/releases
 	tar $(TAR_XFORM_ARG) '$(TAR_XFORM_CMD)!bin/git-lfs-.*!git-lfs!' $(TAR_XFORM_ARG) '$(TAR_XFORM_CMD)!script/!!' -czf $@ $^
 
-# bin/releases/git-lfs-%-$(VERSION).zip generates a ZIP compression of all of
-# the Windows release artifacts.
+# bin/releases/git-lfs-darwin-$(VERSION).zip generates a ZIP compression of all
+# of the macOS release artifacts.
+#
+# It includes all of the RELEASE_INCLUDES, as well as script/install.sh.
+bin/releases/git-lfs-darwin-%-$(VERSION).zip : \
+$(RELEASE_INCLUDES) bin/git-lfs-darwin-% script/install.sh
+	dir=bin/releases/darwin-$* && \
+	rm -f $@ && \
+	mkdir -p $$dir && \
+	cp -R $^ $$dir && mv $$dir/git-lfs-darwin-$* $$dir/git-lfs && \
+	zip -j $@ $$dir/* && \
+	zip -u $@ man/* && \
+	$(RM) -r $$dir
+
+# bin/releases/git-lfs-windows-$(VERSION).zip generates a ZIP compression of all
+# of the Windows release artifacts.
 #
 # It includes all of the RELEASE_INCLUDES, and converts LF-style line endings to
 # CRLF in the non-binary components of the artifact.
-bin/releases/git-lfs-%-$(VERSION).zip : $(RELEASE_INCLUDES) bin/git-lfs-%.exe
+bin/releases/git-lfs-windows-%-$(VERSION).zip : $(RELEASE_INCLUDES) bin/git-lfs-windows-%.exe
 	@mkdir -p bin/releases
+	rm -f $@
 	zip -j -l $@ $^
+	zip -u $@ man/*
 
 # bin/releases/git-lfs-$(VERSION).tar.gz generates a tarball of the source code.
 #
@@ -302,7 +352,7 @@ release-linux:
 # release-windows is a target that builds and signs Windows binaries.  It must
 # be run on a Windows machine under Git Bash.
 #
-# You may sign with a different certificate by specifying CERT_SHA1.
+# You may sign with a different certificate by specifying CERT_ID.
 .PHONY : release-windows
 release-windows: bin/releases/git-lfs-windows-assets-$(VERSION).tar.gz
 
@@ -312,17 +362,20 @@ bin/releases/git-lfs-windows-assets-$(VERSION).tar.gz :
 	@# work properly.
 	$(MAKE) -B GOARCH=amd64 && cp ./bin/git-lfs.exe ./git-lfs-x64.exe
 	$(MAKE) -B GOARCH=386 && cp ./bin/git-lfs.exe ./git-lfs-x86.exe
-	signtool.exe sign /sha1 $(CERT_SHA1) /fd sha256 /tr http://timestamp.digicert.com /td sha256 /v git-lfs-x64.exe
-	signtool.exe sign /sha1 $(CERT_SHA1) /fd sha256 /tr http://timestamp.digicert.com /td sha256 /v git-lfs-x86.exe
+	@echo Signing git-lfs-x64.exe
+	@signtool.exe sign -debug -fd sha256 -tr http://timestamp.digicert.com -td sha256 $(CERT_ARGS) -v git-lfs-x64.exe
+	@echo Signing git-lfs-x86.exe
+	@signtool.exe sign -debug -fd sha256 -tr http://timestamp.digicert.com -td sha256 $(CERT_ARGS) -v git-lfs-x86.exe
 	iscc.exe script/windows-installer/inno-setup-git-lfs-installer.iss
 	@# This file will be named according to the version number in the
 	@# versioninfo.json, not according to $(VERSION).
 	mv git-lfs-windows-*.exe git-lfs-windows.exe
-	signtool.exe sign /sha1 $(CERT_SHA1) /fd sha256 /tr http://timestamp.digicert.com /td sha256 /v git-lfs-windows.exe
+	@echo Signing git-lfs-windows.exe
+	@signtool.exe sign -debug -fd sha256 -tr http://timestamp.digicert.com -td sha256 $(CERT_ARGS) -v git-lfs-windows.exe
 	mv git-lfs-x64.exe git-lfs-windows-amd64.exe
 	mv git-lfs-x86.exe git-lfs-windows-386.exe
 	@# We use tar because Git Bash doesn't include zip.
-	tar -cf $@ git-lfs-windows-amd64.exe git-lfs-windows-386.exe git-lfs-windows.exe
+	tar -czf $@ git-lfs-windows-amd64.exe git-lfs-windows-386.exe git-lfs-windows.exe
 	$(RM) git-lfs-windows-amd64.exe git-lfs-windows-386.exe git-lfs-windows.exe
 
 # release-windows-rebuild takes the archive produced by release-windows and
@@ -341,6 +394,54 @@ release-windows-rebuild: bin/releases/git-lfs-windows-assets-$(VERSION).tar.gz
 			cp "$$temp/git-lfs-windows.exe" bin/releases/git-lfs-windows-$(VERSION).exe \
 		); \
 		status="$$?"; [ -n "$$temp" ] && $(RM) -r "$$temp"; exit "$$status"
+
+# release-darwin is a target that builds and signs Darwin (macOS) binaries.  It must
+# be run on a macOS machine with a suitable version of XCode.
+#
+# You may sign with a different certificate by specifying DARWIN_CERT_ID.
+.PHONY : release-darwin
+release-darwin: bin/releases/git-lfs-darwin-amd64-$(VERSION).zip
+	for i in $^; do \
+		temp=$$(mktemp -d) && \
+		( \
+			unzip -d "$$temp" $^ && \
+			codesign --keychain $(DARWIN_KEYCHAIN_ID) -s "$(DARWIN_CERT_ID)" --force --timestamp -vvvv --options runtime "$$temp/git-lfs" && \
+			codesign -dvvv "$$temp/git-lfs" && \
+			zip -j $$i "$$temp/git-lfs" && \
+			codesign --keychain $(DARWIN_KEYCHAIN_ID) -s "$(DARWIN_CERT_ID)" --force --timestamp -vvvv --options runtime "$$i" && \
+			codesign -dvvv "$$i" && \
+			jq -e ".notarize.path = \"$$i\" | .apple_id.username = \"$(DARWIN_DEV_USER)\"" script/macos/manifest.json > "$$temp/manifest.json"; \
+			for j in 1 2 3; \
+			do \
+				gon "$$temp/manifest.json" && break; \
+			done; \
+		); \
+		status="$$?"; [ -n "$$temp" ] && $(RM) -r "$$temp"; [ "$$status" -eq 0 ] || exit "$$status"; \
+	done
+
+.PHONY : release-write-certificate
+release-write-certificate:
+	@echo "Writing certificate to $(CERT_FILE)"
+	@echo "$$CERT_CONTENTS" | base64 --decode >"$$CERT_FILE"
+	@printf 'Wrote %d bytes (SHA256 %s) to certificate file\n' $$(wc -c <"$$CERT_FILE") $$(shasum -ba 256 "$$CERT_FILE" | cut -d' ' -f1)
+
+# release-import-certificate imports the given certificate into the macOS
+# keychain "CI".  It is not generally recommended to run this on a user system,
+# since it creates a new keychain and modifies the keychain search path.
+.PHONY : release-import-certificate
+release-import-certificate:
+	@[ -n "$(CI)" ] || { echo "Don't run this target by hand." >&2; false; }
+	@echo "Creating CI keychain"
+	security create-keychain -p default CI.keychain
+	security set-keychain-settings CI.keychain
+	security unlock-keychain -p default CI.keychain
+	@echo "Importing certificate from $(CERT_FILE)"
+	@security import "$$CERT_FILE" -f pkcs12 -k CI.keychain -P "$$CERT_PASS" -A
+	@echo "Verifying import and setting permissions"
+	security list-keychains -s CI.keychain
+	security default-keychain -s CI.keychain
+	security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k default CI.keychain
+	security find-identity -vp codesigning CI.keychain
 
 # TEST_TARGETS is a list of all phony test targets. Each one of them corresponds
 # to a specific kind or subset of tests to run.
@@ -368,9 +469,18 @@ test-race : GO_TEST_EXTRA_ARGS=-race
 # 		make PKGS="config lfsapi tools/kv" test-race
 #
 # And so on.
-test : fmt
-	(unset GIT_DIR; unset GIT_WORK_TREE; \
-	$(GO) test $(GO_TEST_EXTRA_ARGS) $(addprefix ./,$(PKGS)))
+test : fmt $(.DEFAULT_GOAL)
+	( \
+		unset GIT_DIR; unset GIT_WORK_TREE; unset XDG_CONFIG_HOME; \
+		tempdir="$$(mktemp -d)"; \
+		export HOME="$$tempdir"; \
+		export GIT_CONFIG_NOSYSTEM=1; \
+		$(GO) test -count=1 $(GO_TEST_EXTRA_ARGS) $(addprefix ./,$(PKGS)); \
+		RET=$$?; \
+		chmod -R u+w "$$tempdir"; \
+		rm -fr "$$tempdir"; \
+		exit $$RET; \
+	)
 
 # integration is a shorthand for running 'make' in the 't' directory.
 .PHONY : integration
@@ -433,6 +543,7 @@ MAN_ROFF_TARGETS = man/git-lfs-checkout.1 \
   man/git-lfs-migrate.1 \
   man/git-lfs-pointer.1 \
   man/git-lfs-post-checkout.1 \
+  man/git-lfs-post-commit.1 \
   man/git-lfs-post-merge.1 \
   man/git-lfs-pre-push.1 \
   man/git-lfs-prune.1 \
@@ -465,6 +576,7 @@ MAN_HTML_TARGETS = man/git-lfs-checkout.1.html \
   man/git-lfs-migrate.1.html \
   man/git-lfs-pointer.1.html \
   man/git-lfs-post-checkout.1.html \
+  man/git-lfs-post-commit.1.html \
   man/git-lfs-post-merge.1.html \
   man/git-lfs-pre-push.1.html \
   man/git-lfs-prune.1.html \

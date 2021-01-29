@@ -19,7 +19,7 @@ begin_test "multiple revs with same OID get pushed once"
 
   # Stash the contents of the file that we want to commit in .git/lfs/objects.
   object_dir="$(echo $contents_oid \
-    | awk '{ print substr($0, 0, 2) "/" substr($0, 3, 2) }')"
+    | awk '{ print substr($0, 1, 2) "/" substr($0, 3, 2) }')"
   mkdir -p ".git/lfs/objects/$object_dir"
   printf "%s" "$contents" > ".git/lfs/objects/$object_dir/$contents_oid"
 
@@ -42,7 +42,7 @@ begin_test "multiple revs with same OID get pushed once"
 
   # Delay the push until here, so the server doesn't have a copy of the OID that
   # we're trying to push.
-  git push origin master 2>&1 | tee push.log
+  git push origin main 2>&1 | tee push.log
   grep "Uploading LFS objects: 100% (1/1), 8 B" push.log
 
   assert_server_object "$reponame" "$contents_oid"

@@ -67,7 +67,7 @@ func (c *singleCheckout) Run(p *lfs.WrappedPointer) {
 	// Check the content - either missing or still this pointer (not exist is ok)
 	filepointer, err := lfs.DecodePointerFromFile(cwdfilepath)
 	if err != nil && !os.IsNotExist(err) {
-		if errors.IsNotAPointerError(err) {
+		if errors.IsNotAPointerError(err) || errors.IsBadPointerKeyError(err) {
 			// File has non-pointer content, leave it alone
 			return
 		}
@@ -87,7 +87,7 @@ func (c *singleCheckout) Run(p *lfs.WrappedPointer) {
 			// acceptable error, data not local (fetch not run or include/exclude)
 			Error("Skipped checkout for %q, content not local. Use fetch to download.", p.Name)
 		} else {
-			FullError(fmt.Errorf("Could not check out %q", p.Name))
+			FullError(fmt.Errorf("could not check out %q", p.Name))
 		}
 		return
 	}

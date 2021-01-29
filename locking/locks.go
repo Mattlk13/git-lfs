@@ -112,7 +112,7 @@ func (c *Client) LockFile(path string) (Lock, error) {
 		if len(lockRes.RequestID) > 0 {
 			tracerx.Printf("Server Request ID: %s", lockRes.RequestID)
 		}
-		return Lock{}, fmt.Errorf("Server unable to create lock: %s", lockRes.Message)
+		return Lock{}, fmt.Errorf("server unable to create lock: %s", lockRes.Message)
 	}
 
 	lock := *lockRes.Lock
@@ -125,9 +125,11 @@ func (c *Client) LockFile(path string) (Lock, error) {
 		return Lock{}, errors.Wrap(err, "make lockpath absolute")
 	}
 
-	// Ensure writeable on return
-	if err := tools.SetFileWriteFlag(abs, true); err != nil {
-		return Lock{}, err
+	// If the file exists, ensure that it's writeable on return
+	if tools.FileExists(abs) {
+		if err := tools.SetFileWriteFlag(abs, true); err != nil {
+			return Lock{}, errors.Wrap(err, "set file write flag")
+		}
 	}
 
 	return lock, nil
@@ -154,7 +156,7 @@ func getAbsolutePath(p string) (string, error) {
 func (c *Client) UnlockFile(path string, force bool) error {
 	id, err := c.lockIdFromPath(path)
 	if err != nil {
-		return fmt.Errorf("Unable to get lock id: %v", err)
+		return fmt.Errorf("unable to get lock id: %v", err)
 	}
 
 	return c.UnlockFileById(id, force)
@@ -172,11 +174,11 @@ func (c *Client) UnlockFileById(id string, force bool) error {
 		if len(unlockRes.RequestID) > 0 {
 			tracerx.Printf("Server Request ID: %s", unlockRes.RequestID)
 		}
-		return fmt.Errorf("Server unable to unlock: %s", unlockRes.Message)
+		return fmt.Errorf("server unable to unlock: %s", unlockRes.Message)
 	}
 
 	if err := c.cache.RemoveById(id); err != nil {
-		return fmt.Errorf("Error caching unlock information: %v", err)
+		return fmt.Errorf("error caching unlock information: %v", err)
 	}
 
 	if unlockRes.Lock != nil {
@@ -286,7 +288,7 @@ func (c *Client) SearchLocksVerifiable(limit int, cached bool) (ourLocks, theirL
 				if len(list.RequestID) > 0 {
 					tracerx.Printf("Server Request ID: %s", list.RequestID)
 				}
-				return ourLocks, theirLocks, fmt.Errorf("Server error searching locks: %s", list.Message)
+				return ourLocks, theirLocks, fmt.Errorf("server error searching locks: %s", list.Message)
 			}
 
 			for _, l := range list.Ours {
@@ -367,7 +369,7 @@ func (c *Client) searchRemoteLocks(filter map[string]string, limit int) ([]Lock,
 			if len(list.RequestID) > 0 {
 				tracerx.Printf("Server Request ID: %s", list.RequestID)
 			}
-			return locks, fmt.Errorf("Server error searching for locks: %s", list.Message)
+			return locks, fmt.Errorf("server error searching for locks: %s", list.Message)
 		}
 
 		for _, l := range list.Locks {

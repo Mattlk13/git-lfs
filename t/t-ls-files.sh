@@ -327,10 +327,10 @@ begin_test "ls-files: --all with argument(s)"
   git init "$reponame"
   cd "$reponame"
 
-  git lfs ls-files --all master 2>&1 | tee ls-files.log
+  git lfs ls-files --all main 2>&1 | tee ls-files.log
 
   if [ "0" -eq "${PIPESTATUS[0]}" ]; then
-    echo >&2 "fatal: \`git lfs ls-files --all master\` to fail"
+    echo >&2 "fatal: \`git lfs ls-files --all main\` to fail"
     exit 1
   fi
 
@@ -442,3 +442,77 @@ begin_test "ls-files: --name-only"
 )
 end_test
 
+begin_test "ls-files: history with reference range"
+(
+  set -e
+
+  reponame="ls-files-history-with-range"
+  git init "$reponame"
+  cd "$reponame"
+
+  git lfs track "*.dat"
+  git add .gitattributes
+  git commit -m 'intial commit'
+
+  echo "content of a-file" > a.dat
+  git add a.dat
+  git commit -m 'add a.dat'
+
+  echo "content of b-file" > b.dat
+  git add b.dat
+  git commit -m 'add b.dat'
+
+  git tag b-commit
+
+  echo "content of c-file" > c.dat
+  git add c.dat
+  git commit -m 'add c.dat'
+
+  echo "content of c-file and later modified" > c.dat
+  git add c.dat
+  git commit -m 'modify c.dat'
+
+  git tag c-commit
+
+  git rm a.dat
+  git commit -m 'remove a.dat'
+
+  git lfs ls-files --all 2>&1 | tee ls-files.log
+  [ 1 -eq $(grep -c "a\.dat" ls-files.log) ]
+  [ 1 -eq $(grep -c "b\.dat" ls-files.log) ]
+  [ 2 -eq $(grep -c "c\.dat" ls-files.log) ]
+
+  git lfs ls-files b-commit c-commit 2>&1 | tee ls-files.log
+  [ 0 -eq $(grep -c "a\.dat" ls-files.log) ]
+  [ 0 -eq $(grep -c "b\.dat" ls-files.log) ]
+  [ 2 -eq $(grep -c "c\.dat" ls-files.log) ]
+
+  git lfs ls-files c-commit~ c-commit 2>&1 | tee ls-files.log
+  [ 0 -eq $(grep -c "a\.dat" ls-files.log) ]
+  [ 0 -eq $(grep -c "b\.dat" ls-files.log) ]
+  [ 1 -eq $(grep -c "c\.dat" ls-files.log) ]
+
+  git lfs ls-files HEAD~ HEAD 2>&1 | tee ls-files.log
+  [ 0 -eq $(grep -c "a\.dat" ls-files.log) ]
+  [ 0 -eq $(grep -c "b\.dat" ls-files.log) ]
+  [ 0 -eq $(grep -c "c\.dat" ls-files.log) ]
+)
+end_test
+
+begin_test "ls-files: not affected by lfs.fetchexclude"
+(
+  set -e
+
+  mkdir repo-fetchexclude
+  cd repo-fetchexclude
+  git init
+  git lfs track "*.dat" | grep "Tracking \"\*.dat\""
+  echo "some data" > some.dat
+  echo "some text" > some.txt
+  echo "missing" > missing.dat
+  git add missing.dat
+  git commit -m "add missing file"
+  git config lfs.fetchexclude '*'
+  [ "6bbd052ab0 * missing.dat" = "$(git lfs ls-files)" ]
+)
+end_test

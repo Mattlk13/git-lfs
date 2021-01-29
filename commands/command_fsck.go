@@ -26,7 +26,7 @@ var (
 // chain a lfs-fsck, but I don't think it does.
 func fsckCommand(cmd *cobra.Command, args []string) {
 	installHooks(false)
-	requireInRepo()
+	setupRepository()
 
 	ref, err := git.CurrentRef()
 	if err != nil {
@@ -34,7 +34,7 @@ func fsckCommand(cmd *cobra.Command, args []string) {
 	}
 
 	var corruptOids []string
-	gitscanner := lfs.NewGitScanner(func(p *lfs.WrappedPointer, err error) {
+	gitscanner := lfs.NewGitScanner(cfg, func(p *lfs.WrappedPointer, err error) {
 		if err == nil {
 			var pointerOk bool
 			pointerOk, err = fsckPointer(p.Name, p.Oid)

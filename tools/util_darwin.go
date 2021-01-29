@@ -1,15 +1,17 @@
-// +build darwin
+// +build darwin,cgo
 
 package tools
 
 import (
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"strconv"
 	"strings"
-	"unsafe"
+	"syscall"
 
+	"github.com/git-lfs/git-lfs/errors"
 	"golang.org/x/sys/unix"
 )
 
@@ -54,6 +56,30 @@ func checkCloneFileSupported() bool {
 	return major >= 16
 }
 
+// CheckCloneFileSupported runs explicit test of clone file on supplied directory.
+// This function creates some (src and dst) file in the directory and remove after test finished.
+//
+// If check failed (e.g. directory is read-only), returns err.
+func CheckCloneFileSupported(dir string) (supported bool, err error) {
+	if !cloneFileSupported {
+		return false, errors.New("unsupported OS version. >= 10.12.x Sierra required")
+	}
+
+	src, err := ioutil.TempFile(dir, "src")
+	if err != nil {
+		return false, err
+	}
+	defer os.Remove(src.Name())
+
+	dst, err := ioutil.TempFile(dir, "dst")
+	if err != nil {
+		return false, err
+	}
+	defer os.Remove(dst.Name())
+
+	return CloneFileByPath(dst.Name(), src.Name())
+}
+
 type CloneFileError struct {
 	Unsupported bool
 	errorString string
@@ -86,30 +112,11 @@ func CloneFileByPath(dst, src string) (bool, error) {
 }
 
 func cloneFileSyscall(dst, src string) *CloneFileError {
-	srcCString, err := unix.BytePtrFromString(src)
+	err := unix.Clonefileat(C.AT_FDCWD, src, C.AT_FDCWD, dst, C.CLONE_NOFOLLOW)
 	if err != nil {
-		return &CloneFileError{errorString: err.Error()}
-	}
-	dstCString, err := unix.BytePtrFromString(dst)
-	if err != nil {
-		return &CloneFileError{errorString: err.Error()}
-	}
-
-	atFDCwd := C.AT_FDCWD // current directory.
-
-	_, _, errNo := unix.Syscall6(
-		unix.SYS_CLONEFILEAT,
-		uintptr(atFDCwd),
-		uintptr(unsafe.Pointer(srcCString)),
-		uintptr(atFDCwd),
-		uintptr(unsafe.Pointer(dstCString)),
-		uintptr(C.CLONE_NOFOLLOW),
-		0,
-	)
-	if errNo != 0 {
 		return &CloneFileError{
-			Unsupported: errNo == C.ENOTSUP,
-			errorString: fmt.Sprintf("%s. from %v to %v", unix.ErrnoName(errNo), src, dst),
+			Unsupported: err == syscall.ENOTSUP,
+			errorString: fmt.Sprintf("%s. from %v to %v", err, src, dst),
 		}
 	}
 

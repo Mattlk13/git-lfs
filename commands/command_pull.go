@@ -17,7 +17,7 @@ import (
 
 func pullCommand(cmd *cobra.Command, args []string) {
 	requireGitVersion()
-	requireInRepo()
+	setupRepository()
 
 	if len(args) > 0 {
 		// Remote is first arg
@@ -27,7 +27,7 @@ func pullCommand(cmd *cobra.Command, args []string) {
 	}
 
 	includeArg, excludeArg := getIncludeExcludeArgs(cmd)
-	filter := buildFilepathFilter(cfg, includeArg, excludeArg)
+	filter := buildFilepathFilter(cfg, includeArg, excludeArg, true)
 	pull(filter)
 }
 
@@ -47,7 +47,7 @@ func pull(filter *filepathfilter.Filter) {
 	remote := cfg.Remote()
 	singleCheckout := newSingleCheckout(cfg.Git, remote)
 	q := newDownloadQueue(singleCheckout.Manifest(), remote, tq.WithProgress(meter))
-	gitscanner := lfs.NewGitScanner(func(p *lfs.WrappedPointer, err error) {
+	gitscanner := lfs.NewGitScanner(cfg, func(p *lfs.WrappedPointer, err error) {
 		if err != nil {
 			LoggedError(err, "Scanner error: %s", err)
 			return

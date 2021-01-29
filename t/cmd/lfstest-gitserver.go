@@ -5,6 +5,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"compress/gzip"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/sha256"
@@ -59,8 +60,10 @@ var (
 		"status-storage-403", "status-storage-404", "status-storage-410", "status-storage-422", "status-storage-500", "status-storage-503",
 		"status-batch-resume-206", "batch-resume-fail-fallback", "return-expired-action", "return-expired-action-forever", "return-invalid-size",
 		"object-authenticated", "storage-download-retry", "storage-upload-retry", "storage-upload-retry-later", "unknown-oid",
-		"send-verify-action", "send-deprecated-links",
+		"send-verify-action", "send-deprecated-links", "redirect-storage-upload", "storage-compress",
 	}
+
+	reqCookieReposRE = regexp.MustCompile(`\A/require-cookie-`)
 )
 
 func main() {
@@ -108,6 +111,12 @@ func main() {
 		id, ok := reqId(w)
 		if !ok {
 			return
+		}
+
+		if reqCookieReposRE.MatchString(r.URL.Path) {
+			if skipIfNoCookie(w, r, id) {
+				return
+			}
 		}
 
 		if strings.Contains(r.URL.Path, "/info/lfs") {
@@ -250,7 +259,10 @@ func lfsHandler(w http.ResponseWriter, r *http.Request, id string) {
 	}
 }
 
-func lfsUrl(repo, oid string) string {
+func lfsUrl(repo, oid string, redirect bool) string {
+	if redirect {
+		return server.URL + "/redirect307/objects/" + oid + "?r=" + repo
+	}
 	return server.URL + "/storage/" + oid + "?r=" + repo
 }
 
@@ -480,10 +492,9 @@ func lfsBatchHandler(w http.ResponseWriter, r *http.Request, id, repo string) {
 			if handler == "send-deprecated-links" {
 				o.Links = make(map[string]*lfsLink)
 			}
-
 			if addAction {
 				a := &lfsLink{
-					Href:   lfsUrl(repo, obj.Oid),
+					Href:   lfsUrl(repo, obj.Oid, handler == "redirect-storage-upload"),
 					Header: map[string]string{},
 				}
 				a = serveExpired(a, repo, handler)
@@ -636,7 +647,6 @@ func storageHandler(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-
 	repo := r.URL.Query().Get("r")
 	parts := strings.Split(r.URL.Path, "/")
 	oid := parts[len(parts)-1]
@@ -688,6 +698,12 @@ func storageHandler(w http.ResponseWriter, r *http.Request) {
 				fmt.Println("Setting header to: ", strconv.Itoa(timeLeft))
 				return
 			}
+		case "storage-compress":
+			if r.Header.Get("Accept-Encoding") != "gzip" {
+				w.WriteHeader(500)
+				w.Write([]byte("not encoded"))
+				return
+			}
 		}
 
 		if testingChunkedTransferEncoding(r) {
@@ -721,6 +737,7 @@ func storageHandler(w http.ResponseWriter, r *http.Request) {
 		statusCode := 200
 		byteLimit := 0
 		resumeAt := int64(0)
+		compress := false
 
 		if by, ok := largeObjects.Get(repo, oid); ok {
 			if len(by) == len("storage-download-retry-later") && string(by) == "storage-download-retry-later" {
@@ -734,6 +751,13 @@ func storageHandler(w http.ResponseWriter, r *http.Request) {
 				if retries, ok := incrementRetriesFor("storage", "download", repo, oid, false); ok && retries < 3 {
 					statusCode = 500
 					by = []byte("malformed content")
+				}
+			} else if len(by) == len("storage-compress") && string(by) == "storage-compress" {
+				if r.Header.Get("Accept-Encoding") != "gzip" {
+					statusCode = 500
+					by = []byte("not encoded")
+				} else {
+					compress = true
 				}
 			} else if len(by) == len("status-batch-resume-206") && string(by) == "status-batch-resume-206" {
 				// Resume if header includes range, otherwise deliberately interrupt
@@ -793,13 +817,21 @@ func storageHandler(w http.ResponseWriter, r *http.Request) {
 					}
 				}
 			}
+			var wrtr io.Writer = w
+			if compress {
+				w.Header().Set("Content-Encoding", "gzip")
+				gz := gzip.NewWriter(w)
+				defer gz.Close()
+
+				wrtr = gz
+			}
 			w.WriteHeader(statusCode)
 			if byteLimit > 0 {
-				w.Write(by[0:byteLimit])
+				wrtr.Write(by[0:byteLimit])
 			} else if resumeAt > 0 {
-				w.Write(by[resumeAt:])
+				wrtr.Write(by[resumeAt:])
 			} else {
-				w.Write(by)
+				wrtr.Write(by)
 			}
 			return
 		}
@@ -967,6 +999,9 @@ func redirect307Handler(w http.ResponseWriter, r *http.Request) {
 		redirectTo = "/" + strings.Join(parts[3:], "/")
 	} else if parts[2] == "abs" {
 		redirectTo = server.URL + "/" + strings.Join(parts[3:], "/")
+	} else if parts[2] == "objects" {
+		repo := r.URL.Query().Get("r")
+		redirectTo = server.URL + "/storage/" + strings.Join(parts[3:], "/") + "?r=" + repo
 	} else {
 		debug(id, "Invalid URL for redirect: %v", r.URL)
 		w.WriteHeader(404)
@@ -1523,6 +1558,17 @@ func extractAuth(auth string) (string, string, error) {
 	}
 
 	return "", "", nil
+}
+
+func skipIfNoCookie(w http.ResponseWriter, r *http.Request, id string) bool {
+	cookie := r.Header.Get("Cookie")
+	if strings.Contains(cookie, "secret") {
+		return false
+	}
+
+	w.WriteHeader(403)
+	debug(id, "No cookie received: %q", r.URL.Path)
+	return true
 }
 
 func skipIfBadAuth(w http.ResponseWriter, r *http.Request, id string, ntlmSession ntlm.ServerSession) bool {

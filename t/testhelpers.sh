@@ -3,7 +3,7 @@
 # assert_pointer confirms that the pointer in the repository for $path in the
 # given $ref matches the given $oid and $size.
 #
-#   $ assert_pointer "master" "path/to/file" "some-oid" 123
+#   $ assert_pointer "main" "path/to/file" "some-oid" 123
 assert_pointer() {
   local ref="$1"
   local path="$2"
@@ -14,7 +14,7 @@ assert_pointer() {
     while read -r -d $'\0' x; do
       echo $x
     done |
-    grep "$path" | cut -f 3 -d " ")
+    grep -F "$path" | cut -f 3 -d " ")
 
   actual=$(git cat-file -p $gitblob)
   expected=$(pointer $oid $size)
@@ -27,7 +27,7 @@ assert_pointer() {
 # refute_pointer confirms that the file in the repository for $path in the
 # given $ref is _not_ a pointer.
 #
-#   $ refute_pointer "master" "path/to/file"
+#   $ refute_pointer "main" "path/to/file"
 refute_pointer() {
   local ref="$1"
   local path="$2"
@@ -451,13 +451,13 @@ setup_remote_repo_with_file() {
   git add .gitattributes $filename
   git commit -m "add $filename" | tee commit.log
 
-  grep "master (root-commit)" commit.log
+  grep "main (root-commit)" commit.log
   grep "2 files changed" commit.log
   grep "create mode 100644 $filename" commit.log
   grep "create mode 100644 .gitattributes" commit.log
 
-  git push origin master 2>&1 | tee push.log
-  grep "master -> master" push.log
+  git push origin main 2>&1 | tee push.log
+  grep "main -> main" push.log
 }
 
 # substring_position returns the position of a substring in a 1-indexed search
@@ -486,6 +486,17 @@ repo_endpoint() {
   local repo="$2"
 
   echo "$server/$repo.git/info/lfs"
+}
+
+# write_creds_file writes credentials to a file iff it doesn't exist.
+write_creds_file() {
+  local creds="$1"
+  local file="$2"
+
+  if [ ! -f "$file" ]
+  then
+    printf "%s" "$creds" > "$file"
+  fi
 }
 
 # setup initializes the clean, isolated environment for integration tests.
@@ -544,9 +555,9 @@ setup() {
   local certpath="$(echo "$LFS_CLIENT_CERT_FILE" | tr / -)"
   local keypath="$(echo "$LFS_CLIENT_KEY_FILE_ENCRYPTED" | tr / -)"
   mkdir -p "$CREDSDIR"
-  printf "user:pass" > "$CREDSDIR/127.0.0.1"
-  printf ":pass" > "$CREDSDIR/--$certpath"
-  printf ":pass" > "$CREDSDIR/--$keypath"
+  write_creds_file "user:pass" "$CREDSDIR/127.0.0.1"
+  write_creds_file ":pass" "$CREDSDIR/--$certpath"
+  write_creds_file ":pass" "$CREDSDIR/--$keypath"
 
   echo "#"
   echo "# HOME: $HOME"
@@ -695,18 +706,6 @@ get_date() {
   fi
 }
 
-# Convert potentially MinGW bash paths to native Windows paths
-# Needed to match generic built paths in test scripts to native paths generated from Go
-native_path() {
-  local arg=$1
-  if [ $IS_WINDOWS -eq 1 ]; then
-    # Use params form to avoid interpreting any '\' characters
-    printf '%s' "$(cygpath -w $arg)"
-  else
-    printf '%s' "$arg"
-  fi
-}
-
 # escape any instance of '\' with '\\' on Windows
 escape_path() {
   local unescaped="$1"
@@ -731,6 +730,18 @@ native_path_list_separator() {
   else
     printf ":";
   fi
+}
+
+# canonical_path prints the native path name in a canonical form, as if
+# realpath(3) were called on it.
+canonical_path() {
+  printf "%s" "$(lfstest-realpath "$(native_path "$1")")"
+}
+
+# canonical_path_escaped prints the native path name in a canonical form, as if
+# realpath(3) were called on it, and then escapes it.
+canonical_path_escaped() {
+  printf "%s" "$(escape_path "$(lfstest-realpath "$(native_path "$1")")")"
 }
 
 cat_end() {

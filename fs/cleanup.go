@@ -16,8 +16,13 @@ func (f *Filesystem) cleanupTmp() error {
 		return nil
 	}
 
+	// No temporary directory?  No problem.
+	if _, err := os.Stat(tmpdir); err != nil && os.IsNotExist(err) {
+		return nil
+	}
+
 	var walkErr error
-	tools.FastWalkGitRepo(tmpdir, func(parentDir string, info os.FileInfo, err error) {
+	tools.FastWalkDir(tmpdir, func(parentDir string, info os.FileInfo, err error) {
 		if err != nil {
 			walkErr = err
 		}

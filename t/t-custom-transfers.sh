@@ -25,7 +25,7 @@ begin_test "custom-transfer-wrong-path"
   git add a.dat
   git add .gitattributes
   git commit -m "add a.dat" 2>&1 | tee commit.log
-  GIT_TRACE=1 GIT_TRANSFER_TRACE=1 git push origin master 2>&1 | tee pushcustom.log
+  GIT_TRACE=1 GIT_TRANSFER_TRACE=1 git push origin main 2>&1 | tee pushcustom.log
   # use PIPESTATUS otherwise we get exit code from tee
   res=${PIPESTATUS[0]}
   grep "xfer: adapter \"testcustom\" Begin()" pushcustom.log
@@ -88,7 +88,7 @@ begin_test "custom-transfer-upload-download"
   }
   ]" | lfstest-testutils addcommits
 
-  GIT_TRACE=1 GIT_TRANSFER_TRACE=1 git push origin master 2>&1 | tee pushcustom.log
+  GIT_TRACE=1 GIT_TRANSFER_TRACE=1 git push origin main 2>&1 | tee pushcustom.log
   # use PIPESTATUS otherwise we get exit code from tee
   [ ${PIPESTATUS[0]} = "0" ]
 
@@ -167,7 +167,7 @@ begin_test "custom-transfer-standalone"
   }
   ]" | lfstest-testutils addcommits
 
-  GIT_TRACE=1 GIT_TRANSFER_TRACE=1 git push origin master 2>&1 | tee pushcustom.log
+  GIT_TRACE=1 GIT_TRANSFER_TRACE=1 git push origin main 2>&1 | tee pushcustom.log
   # use PIPESTATUS otherwise we get exit code from tee
   [ ${PIPESTATUS[0]} = "0" ]
 
@@ -184,7 +184,6 @@ begin_test "custom-transfer-standalone"
 
   grep "xfer: started custom adapter process" fetchcustom.log
   grep "xfer\[lfstest-standalonecustomadapter\]:" fetchcustom.log
-  grep "Downloading LFS objects: 100% (12/12)" fetchcustom.log
 
   grep "Terminating test custom adapter gracefully" fetchcustom.log
 
@@ -195,6 +194,8 @@ begin_test "custom-transfer-standalone"
 
   objectlist=`find .git/lfs/objects -type f`
   [ "$(echo "$objectlist" | wc -l)" -eq 12 ]
+
+  git lfs fsck
 )
 end_test
 
@@ -258,7 +259,7 @@ begin_test "custom-transfer-standalone-urlmatch"
   }
   ]" | lfstest-testutils addcommits
 
-  GIT_TRACE=1 GIT_TRANSFER_TRACE=1 git push origin master 2>&1 | tee pushcustom.log
+  GIT_TRACE=1 GIT_TRANSFER_TRACE=1 git push origin main 2>&1 | tee pushcustom.log
   # use PIPESTATUS otherwise we get exit code from tee
   [ ${PIPESTATUS[0]} = "0" ]
 
@@ -275,11 +276,12 @@ begin_test "custom-transfer-standalone-urlmatch"
 
   grep "xfer: started custom adapter process" fetchcustom.log
   grep "xfer\[lfstest-standalonecustomadapter\]:" fetchcustom.log
-  grep "Downloading LFS objects: 100% (12/12)" fetchcustom.log
 
   grep "Terminating test custom adapter gracefully" fetchcustom.log
 
   objectlist=`find .git/lfs/objects -type f`
   [ "$(echo "$objectlist" | wc -l)" -eq 12 ]
+
+  git lfs fsck
 )
 end_test

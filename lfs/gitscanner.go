@@ -6,11 +6,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/git-lfs/git-lfs/config"
 	"github.com/git-lfs/git-lfs/filepathfilter"
 	"github.com/rubyist/tracerx"
 )
 
-var missingCallbackErr = errors.New("No callback given")
+var missingCallbackErr = errors.New("no callback given")
 
 // IsCallbackMissing returns a boolean indicating whether the error is reporting
 // that a GitScanner is missing a required GitScannerCallback.
@@ -30,6 +31,7 @@ type GitScanner struct {
 	closed  bool
 	started time.Time
 	mu      sync.Mutex
+	cfg     *config.Configuration
 }
 
 type GitScannerFoundPointer func(*WrappedPointer, error)
@@ -41,8 +43,8 @@ type GitScannerSet interface {
 
 // NewGitScanner initializes a *GitScanner for a Git repository in the current
 // working directory.
-func NewGitScanner(cb GitScannerFoundPointer) *GitScanner {
-	return &GitScanner{started: time.Now(), FoundPointer: cb}
+func NewGitScanner(cfg *config.Configuration, cb GitScannerFoundPointer) *GitScanner {
+	return &GitScanner{started: time.Now(), FoundPointer: cb, cfg: cfg}
 }
 
 // Close stops exits once all processing has stopped, and all resources are
@@ -66,7 +68,7 @@ func (s *GitScanner) RemoteForPush(r string) error {
 	defer s.mu.Unlock()
 
 	if len(s.remote) > 0 && s.remote != r {
-		return fmt.Errorf("Trying to set remote to %q, already set to %q", r, s.remote)
+		return fmt.Errorf("trying to set remote to %q, already set to %q", r, s.remote)
 	}
 
 	s.remote = r
@@ -74,9 +76,10 @@ func (s *GitScanner) RemoteForPush(r string) error {
 	return nil
 }
 
-// ScanLeftToRemote scans through all commits starting at the given ref that the
-// given remote does not have. See RemoteForPush().
-func (s *GitScanner) ScanLeftToRemote(left string, cb GitScannerFoundPointer) error {
+// ScanRangeToRemote scans through all commits starting at the left ref but not
+// including the right ref (if given)that the given remote does not have. See
+// RemoteForPush().
+func (s *GitScanner) ScanRangeToRemote(left, right string, cb GitScannerFoundPointer) error {
 	callback, err := firstGitScannerCallback(cb, s.FoundPointer)
 	if err != nil {
 		return err
@@ -85,11 +88,30 @@ func (s *GitScanner) ScanLeftToRemote(left string, cb GitScannerFoundPointer) er
 	s.mu.Lock()
 	if len(s.remote) == 0 {
 		s.mu.Unlock()
-		return fmt.Errorf("Unable to scan starting at %q: no remote set.", left)
+		return fmt.Errorf("unable to scan starting at %q: no remote set", left)
 	}
 	s.mu.Unlock()
 
-	return scanLeftRightToChan(s, callback, left, "", s.opts(ScanLeftToRemoteMode))
+	return scanLeftRightToChan(s, callback, left, right, s.cfg.GitEnv(), s.cfg.OSEnv(), s.opts(ScanRangeToRemoteMode))
+}
+
+// ScanMultiRangeToRemote scans through all commits starting at the left ref but
+// not including the right ref (if given) that the given remote does not have.
+// See RemoteForPush().
+func (s *GitScanner) ScanMultiRangeToRemote(left string, rights []string, cb GitScannerFoundPointer) error {
+	callback, err := firstGitScannerCallback(cb, s.FoundPointer)
+	if err != nil {
+		return err
+	}
+
+	s.mu.Lock()
+	if len(s.remote) == 0 {
+		s.mu.Unlock()
+		return fmt.Errorf("unable to scan starting at %q: no remote set", left)
+	}
+	s.mu.Unlock()
+
+	return scanMultiLeftRightToChan(s, callback, left, rights, s.cfg.GitEnv(), s.cfg.OSEnv(), s.opts(ScanRangeToRemoteMode))
 }
 
 // ScanRefs through all commits reachable by refs contained in "include" and
@@ -102,7 +124,7 @@ func (s *GitScanner) ScanRefs(include, exclude []string, cb GitScannerFoundPoint
 
 	opts := s.opts(ScanRefsMode)
 	opts.SkipDeletedBlobs = false
-	return scanRefsToChan(s, callback, include, exclude, opts)
+	return scanRefsToChan(s, callback, include, exclude, s.cfg.GitEnv(), s.cfg.OSEnv(), opts)
 }
 
 // ScanRefRange scans through all commits from the given left and right refs,
@@ -115,7 +137,7 @@ func (s *GitScanner) ScanRefRange(left, right string, cb GitScannerFoundPointer)
 
 	opts := s.opts(ScanRefsMode)
 	opts.SkipDeletedBlobs = false
-	return scanLeftRightToChan(s, callback, left, right, opts)
+	return scanLeftRightToChan(s, callback, left, right, s.cfg.GitEnv(), s.cfg.OSEnv(), opts)
 }
 
 // ScanRefWithDeleted scans through all objects in the given ref, including
@@ -134,7 +156,7 @@ func (s *GitScanner) ScanRef(ref string, cb GitScannerFoundPointer) error {
 
 	opts := s.opts(ScanRefsMode)
 	opts.SkipDeletedBlobs = true
-	return scanLeftRightToChan(s, callback, ref, "", opts)
+	return scanLeftRightToChan(s, callback, ref, "", s.cfg.GitEnv(), s.cfg.OSEnv(), opts)
 }
 
 // ScanAll scans through all objects in the git repository.
@@ -146,7 +168,7 @@ func (s *GitScanner) ScanAll(cb GitScannerFoundPointer) error {
 
 	opts := s.opts(ScanAllMode)
 	opts.SkipDeletedBlobs = false
-	return scanLeftRightToChan(s, callback, "", "", opts)
+	return scanLeftRightToChan(s, callback, "", "", s.cfg.GitEnv(), s.cfg.OSEnv(), opts)
 }
 
 // ScanTree takes a ref and returns WrappedPointer objects in the tree at that
@@ -157,7 +179,7 @@ func (s *GitScanner) ScanTree(ref string) error {
 	if err != nil {
 		return err
 	}
-	return runScanTree(callback, ref, s.Filter)
+	return runScanTree(callback, ref, s.Filter, s.cfg.GitEnv(), s.cfg.OSEnv())
 }
 
 // ScanUnpushed scans history for all LFS pointers which have been added but not
@@ -168,6 +190,16 @@ func (s *GitScanner) ScanUnpushed(remote string, cb GitScannerFoundPointer) erro
 		return err
 	}
 	return scanUnpushed(callback, remote)
+}
+
+// ScanStashed scans for all LFS pointers referenced solely by a stash
+func (s *GitScanner) ScanStashed(cb GitScannerFoundPointer) error {
+	callback, err := firstGitScannerCallback(cb, s.FoundPointer)
+	if err != nil {
+		return err
+	}
+
+	return scanStashed(callback, s)
 }
 
 // ScanPreviousVersions scans changes reachable from ref (commit) back to since.
@@ -188,7 +220,7 @@ func (s *GitScanner) ScanIndex(ref string, cb GitScannerFoundPointer) error {
 	if err != nil {
 		return err
 	}
-	return scanIndex(callback, ref, s.Filter)
+	return scanIndex(callback, ref, s.Filter, s.cfg.GitEnv(), s.cfg.OSEnv())
 }
 
 func (s *GitScanner) opts(mode ScanningMode) *ScanRefsOptions {
@@ -216,9 +248,9 @@ func firstGitScannerCallback(callbacks ...GitScannerFoundPointer) (GitScannerFou
 type ScanningMode int
 
 const (
-	ScanRefsMode         = ScanningMode(iota) // 0 - or default scan mode
-	ScanAllMode          = ScanningMode(iota)
-	ScanLeftToRemoteMode = ScanningMode(iota)
+	ScanRefsMode          = ScanningMode(iota) // 0 - or default scan mode
+	ScanAllMode           = ScanningMode(iota)
+	ScanRangeToRemoteMode = ScanningMode(iota)
 )
 
 type ScanRefsOptions struct {

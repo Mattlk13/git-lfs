@@ -69,6 +69,12 @@ Simply type ` + root.Name() + ` help [path to command] for full details.`,
 
 		Run: func(c *cobra.Command, args []string) {
 			cmd, _, e := c.Root().Find(args)
+			// In the case of "git lfs help config", pretend the
+			// last arg was "help" so our command lookup succeeds,
+			// since cmd will be ignored in helpCommand().
+			if e != nil && args[0] == "config" {
+				cmd, _, e = c.Root().Find([]string{"help"})
+			}
 			if cmd == nil || e != nil {
 				c.Printf("Unknown help topic %#q\n", args)
 				c.Root().Usage()
@@ -85,6 +91,8 @@ Simply type ` + root.Name() + ` help [path to command] for full details.`,
 	root.SetUsageFunc(usageCommand)
 
 	root.Flags().BoolVarP(&rootVersion, "version", "v", false, "")
+
+	canonicalizeEnvironment()
 
 	cfg = config.New()
 
@@ -124,6 +132,9 @@ func usageCommand(cmd *cobra.Command) error {
 }
 
 func printHelp(commandName string) {
+	if commandName == "--help" {
+		commandName = "git-lfs"
+	}
 	if txt, ok := ManPages[commandName]; ok {
 		fmt.Fprintf(os.Stdout, "%s\n", strings.TrimSpace(txt))
 	} else {

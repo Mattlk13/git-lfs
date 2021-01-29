@@ -20,10 +20,12 @@ var (
 )
 
 func lsFilesCommand(cmd *cobra.Command, args []string) {
-	requireInRepo()
+	setupRepository()
 
 	var ref string
-	if len(args) == 1 {
+	var otherRef string
+	var scanRange = false
+	if len(args) > 0 {
 		if lsFilesScanAll {
 			Exit("fatal: cannot use --all with explicit reference")
 		} else if args[0] == "--all" {
@@ -37,10 +39,17 @@ func lsFilesCommand(cmd *cobra.Command, args []string) {
 		}
 
 		ref = args[0]
+		if len(args) > 1 {
+			if lsFilesScanDeleted {
+				Exit("fatal: cannot use --deleted with reference range")
+			}
+			otherRef = args[1]
+			scanRange = true
+		}
 	} else {
 		fullref, err := git.CurrentRef()
 		if err != nil {
-			ref = git.RefBeforeFirstCommit
+			ref = git.EmptyTree()
 		} else {
 			ref = fullref.Sha
 		}
@@ -53,13 +62,13 @@ func lsFilesCommand(cmd *cobra.Command, args []string) {
 
 	seen := make(map[string]struct{})
 
-	gitscanner := lfs.NewGitScanner(func(p *lfs.WrappedPointer, err error) {
+	gitscanner := lfs.NewGitScanner(cfg, func(p *lfs.WrappedPointer, err error) {
 		if err != nil {
 			Exit("Could not scan for Git LFS tree: %s", err)
 			return
 		}
 
-		if !lsFilesScanAll {
+		if !lsFilesScanAll && !scanRange {
 			if _, ok := seen[p.Name]; ok {
 				return
 			}
@@ -98,7 +107,7 @@ func lsFilesCommand(cmd *cobra.Command, args []string) {
 	defer gitscanner.Close()
 
 	includeArg, excludeArg := getIncludeExcludeArgs(cmd)
-	gitscanner.Filter = buildFilepathFilter(cfg, includeArg, excludeArg)
+	gitscanner.Filter = buildFilepathFilter(cfg, includeArg, excludeArg, false)
 
 	if len(args) == 0 {
 		// Only scan the index when "git lfs ls-files" was invoked with
@@ -118,6 +127,8 @@ func lsFilesCommand(cmd *cobra.Command, args []string) {
 		var err error
 		if lsFilesScanDeleted {
 			err = gitscanner.ScanRefWithDeleted(ref, nil)
+		} else if scanRange {
+			err = gitscanner.ScanRefRange(otherRef, ref, nil)
 		} else {
 			err = gitscanner.ScanTree(ref)
 		}

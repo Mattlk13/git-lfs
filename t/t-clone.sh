@@ -38,7 +38,7 @@ begin_test "clone"
   }
   ]" | lfstest-testutils addcommits
 
-  git push origin master
+  git push origin main
 
   # Now clone again, test specific clone dir
   cd "$TRASHDIR"
@@ -116,7 +116,7 @@ begin_test "cloneSSL"
   }
   ]" | lfstest-testutils addcommits
 
-  git push origin master
+  git push origin main
 
   # Now SSL clone again with 'git lfs clone', test specific clone dir
   cd "$TRASHDIR"
@@ -181,7 +181,7 @@ begin_test "clone ClientCert"
   }
   ]" | lfstest-testutils addcommits
 
-  git push origin master
+  git push origin main
 
   # Now clone again with 'git lfs clone', test specific clone dir
   cd "$TRASHDIR"
@@ -247,14 +247,14 @@ begin_test "clone with flags"
   },
   {
     \"CommitDate\":\"$(get_date -3d)\",
-    \"ParentBranches\":[\"master\"],
+    \"ParentBranches\":[\"main\"],
     \"Files\":[
       {\"Filename\":\"file3.dat\",\"Size\":120},
       {\"Filename\":\"file4.dat\",\"Size\":30}]
   }
   ]" | lfstest-testutils addcommits
 
-  git push origin master branch2
+  git push origin main branch2
 
   # Now clone again, test specific clone dir
   cd "$TRASHDIR"
@@ -330,7 +330,7 @@ begin_test "clone (with include/exclude args)"
 
   git add *.dat .gitattributes
   git commit -m "add a.dat, b.dat" 2>&1 | tee commit.log
-  grep "master (root-commit)" commit.log
+  grep "main (root-commit)" commit.log
   grep "5 files changed" commit.log
   grep "create mode 100644 a.dat" commit.log
   grep "create mode 100644 a-dupe.dat" commit.log
@@ -338,8 +338,8 @@ begin_test "clone (with include/exclude args)"
   grep "create mode 100644 b.dat" commit.log
   grep "create mode 100644 .gitattributes" commit.log
 
-  git push origin master 2>&1 | tee push.log
-  grep "master -> master" push.log
+  git push origin main 2>&1 | tee push.log
+  grep "main -> main" push.log
   grep "Uploading LFS objects: 100% (2/2), 2 B" push.log
 
   cd "$TRASHDIR"
@@ -389,7 +389,7 @@ begin_test "clone (with .lfsconfig)"
 
   git add a.dat b.dat .gitattributes
   git commit -m "add a.dat, b.dat" 2>&1 | tee commit.log
-  grep "master (root-commit)" commit.log
+  grep "main (root-commit)" commit.log
   grep "3 files changed" commit.log
   grep "create mode 100644 a.dat" commit.log
   grep "create mode 100644 b.dat" commit.log
@@ -398,12 +398,12 @@ begin_test "clone (with .lfsconfig)"
   git config -f ".lfsconfig" "lfs.fetchinclude" "a*"
   git add ".lfsconfig"
   git commit -m "config lfs.fetchinclude a*" 2>&1 | tee commit.log
-  grep "master" commit.log
+  grep "main" commit.log
   grep "1 file changed" commit.log
   grep "create mode 100644 .lfsconfig" commit.log
 
-  git push origin master 2>&1 | tee push.log
-  grep "master -> master" push.log
+  git push origin main 2>&1 | tee push.log
+  grep "main -> main" push.log
   grep "Uploading LFS objects: 100% (2/2), 2 B" push.log
 
   pushd "$TRASHDIR"
@@ -443,10 +443,10 @@ begin_test "clone (with .lfsconfig)"
   git config -f ".lfsconfig" "lfs.fetchexclude" "a*"
   git add .lfsconfig
   git commit -m "config lfs.fetchinclude a*" 2>&1 | tee commit.log
-  grep "master" commit.log
+  grep "main" commit.log
   grep "1 file changed" commit.log
-  git push origin master 2>&1 | tee push.log
-  grep "master -> master" push.log
+  git push origin main 2>&1 | tee push.log
+  grep "main -> main" push.log
 
   pushd "$TRASHDIR"
 
@@ -490,10 +490,10 @@ begin_test "clone (without clean filter)"
 
   git add *.dat .gitattributes
   git commit -m "add a.dat, b.dat" 2>&1 | tee commit.log
-  grep "master (root-commit)" commit.log
+  grep "main (root-commit)" commit.log
 
-  git push origin master 2>&1 | tee push.log
-  grep "master -> master" push.log
+  git push origin main 2>&1 | tee push.log
+  grep "main -> main" push.log
   grep "Uploading LFS objects: 100% (1/1), 1 B" push.log
 
   cd "$TRASHDIR"
@@ -542,7 +542,7 @@ begin_test "clone with submodules"
   printf "%s" "$contents_sub2" > "sub2.dat"
   git add sub2.dat .gitattributes
   git commit -m "Nested submodule level 2"
-  git push origin master
+  git push origin main
 
   clone_repo "$submodname1" submod1
   git lfs track "*.dat" 2>&1 | tee track.log
@@ -556,7 +556,7 @@ begin_test "clone with submodules"
   git submodule update
   git add sub2 sub1.dat .gitattributes
   git commit -m "Nested submodule level 1"
-  git push origin master
+  git push origin main
 
   clone_repo "$reponame" rootrepo
   git lfs track "*.dat" 2>&1 | tee track.log
@@ -570,7 +570,7 @@ begin_test "clone with submodules"
   git submodule update
   git add sub1 root.dat .gitattributes
   git commit -m "Root repo"
-  git push origin master
+  git push origin main
 
   pushd "$TRASHDIR"
 
@@ -614,18 +614,19 @@ begin_test "clone in current directory"
   git add .gitattributes a.dat
 
   git commit -m "initial commit" 2>&1 | tee commit.log
-  grep "master (root-commit)" commit.log
+  grep "main (root-commit)" commit.log
   grep "2 files changed" commit.log
   grep "create mode 100644 a.dat" commit.log
   grep "create mode 100644 .gitattributes" commit.log
 
-  git push origin master 2>&1 | tee push.log
+  git push origin main 2>&1 | tee push.log
 
   pushd $TRASHDIR
     mkdir "$reponame-clone"
     cd "$reponame-clone"
 
-    git lfs clone $GITSERVER/$reponame "." 2>&1 | grep "Downloading LFS objects: 100% (1/1), 8 B"
+    git lfs clone $GITSERVER/$reponame "."
+    git lfs fsck
 
     assert_local_object "$contents_oid" 8
     assert_hooks "$(dot_git_dir)"
@@ -663,5 +664,95 @@ begin_test "clone bare empty repository"
     echo >&2 "fatal: expected clone to succeed ..."
     exit 1
   fi
+)
+end_test
+
+begin_test "clone (HTTP server/proxy require cookies)"
+(
+  set -e
+
+  # golang net.http.Cookie ignores cookies with IP instead of domain/hostname
+  GITSERVER=$(echo "$GITSERVER" | sed 's/127\.0\.0\.1/localhost/')
+  cp "$CREDSDIR/127.0.0.1" "$CREDSDIR/localhost"
+  printf "localhost\tTRUE\t/\tFALSE\t2145916800\tCOOKIE_GITLFS\tsecret\n" >> "$REMOTEDIR/cookies.txt"
+  git config --global http.cookieFile "$REMOTEDIR/cookies.txt"
+
+  reponame="require-cookie-test"
+  setup_remote_repo "$reponame"
+  clone_repo "$reponame" "$reponame"
+
+  git lfs track "*.dat" 2>&1 | tee track.log
+  grep "Tracking \"\*.dat\"" track.log
+
+  # generate some test data & commits with random LFS data
+  echo "[
+  {
+    \"CommitDate\":\"$(get_date -10d)\",
+    \"Files\":[
+      {\"Filename\":\"file1.dat\",\"Size\":100},
+      {\"Filename\":\"file2.dat\",\"Size\":75}]
+  },
+  {
+    \"CommitDate\":\"$(get_date -7d)\",
+    \"Files\":[
+      {\"Filename\":\"file1.dat\",\"Size\":110},
+      {\"Filename\":\"file3.dat\",\"Size\":66},
+      {\"Filename\":\"file4.dat\",\"Size\":23}]
+  },
+  {
+    \"CommitDate\":\"$(get_date -10d)\",
+    \"Files\":[
+      {\"Filename\":\"file5.dat\",\"Size\":120},
+      {\"Filename\":\"file6.dat\",\"Size\":30}]
+  }
+  ]" | lfstest-testutils addcommits
+
+  git push origin main
+
+  # Now clone again, test specific clone dir
+  cd "$TRASHDIR"
+
+  newclonedir="require-cookie-test1"
+  git lfs clone "$GITSERVER/$reponame" "$newclonedir" 2>&1 | tee lfsclone.log
+  grep "Cloning into" lfsclone.log
+  grep "Downloading LFS objects:" lfsclone.log
+  # should be no filter errors
+  [ ! $(grep "filter" lfsclone.log) ]
+  [ ! $(grep "error" lfsclone.log) ]
+  # should be cloned into location as per arg
+  [ -d "$newclonedir" ]
+
+  # check a few file sizes to make sure pulled
+  pushd "$newclonedir"
+    [ $(wc -c < "file1.dat") -eq 110 ]
+    [ $(wc -c < "file2.dat") -eq 75 ]
+    [ $(wc -c < "file3.dat") -eq 66 ]
+    assert_hooks "$(dot_git_dir)"
+    [ ! -e "lfs" ]
+    assert_clean_status
+  popd
+
+  # Now check clone with implied dir
+  rm -rf "$reponame"
+  git lfs clone "$GITSERVER/$reponame" 2>&1 | tee lfsclone.log
+  grep "Cloning into" lfsclone.log
+  grep "Downloading LFS objects:" lfsclone.log
+  # should be no filter errors
+  [ ! $(grep "filter" lfsclone.log) ]
+  [ ! $(grep "error" lfsclone.log) ]
+  # clone location should be implied
+  [ -d "$reponame" ]
+
+  pushd "$reponame"
+    [ $(wc -c < "file1.dat") -eq 110 ]
+    [ $(wc -c < "file2.dat") -eq 75 ]
+    [ $(wc -c < "file3.dat") -eq 66 ]
+    assert_hooks "$(dot_git_dir)"
+    [ ! -e "lfs" ]
+    assert_clean_status
+  popd
+
+  # to avoid breaking t-credentials.sh
+  rm "$CREDSDIR/localhost"
 )
 end_test

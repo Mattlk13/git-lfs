@@ -42,8 +42,11 @@ function split_image_name()
 
 # Parse Arguments
 IMAGES=()
+PRUNE=
 while [[ $# > 0 ]]; do
-  if [ "$1" == "--" ]; then
+  if [ "$1" = "--prune" ]; then
+    PRUNE=t
+  elif [ "$1" == "--" ]; then
     shift
     DOCKER_CMD="${@}"
     break
@@ -55,7 +58,7 @@ done
 
 if [[ ${#IMAGES[@]} == 0 ]]; then
   # If you change this list, change script/upload as well.
-  IMAGES=(centos_6 centos_7 debian_8 debian_9 debian_10)
+  IMAGES=(centos_7 centos_8 debian_9 debian_10)
 fi
 
 mkdir -p "${PACKAGE_DIR}"
@@ -69,7 +72,11 @@ for IMAGE_NAME in "${IMAGES[@]}"; do
   fi
 
   #It CAN'T be empty () with set -u... So I put some defaults in here
-  OTHER_OPTIONS=("-it")
+  OTHER_OPTIONS=("-t")
+
+  if tty >/dev/null; then
+    OTHER_OPTIONS+=("-i")
+  fi
 
   if [ "${AUTO_REMOVE-1}" == "1" ]; then
     OTHER_OPTIONS+=("--rm")
@@ -104,6 +111,10 @@ for IMAGE_NAME in "${IMAGES[@]}"; do
                    -v "${MINGW_PATCH}${IMAGE_REPO_DIR}:/repo" \
                    gitlfs/build-dockers:${IMAGE_NAME} ${DOCKER_CMD-}
 
+  if [ -n "$PRUNE" ]
+  then
+    $SUDO docker rmi -f "gitlfs/build-dockers:${IMAGE_NAME}"
+  fi
 done
 
 echo "Docker run completed successfully!"

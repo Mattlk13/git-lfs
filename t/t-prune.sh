@@ -29,13 +29,13 @@ begin_test "prune unreferenced and old"
 
   # Remember for something to be 'too old' it has to appear on the MINUS side
   # of the diff outside the prune window, i.e. it's not when it was introduced
-  # but when it disappeared from relevance. That's why changes to file1.dat on master
+  # but when it disappeared from relevance. That's why changes to file1.dat on main
   # from 7d ago are included even though the commit itself is outside of the window,
   # that content of file1.dat was relevant until it was removed with a commit, inside the window
   # think of it as windows of relevance that overlap until the content is replaced
 
-  # we also make sure we commit today on master so that the recent commits measured
-  # from latest commit on master tracks back from there
+  # we also make sure we commit today on main so that the recent commits measured
+  # from latest commit on main tracks back from there
   echo "[
   {
     \"CommitDate\":\"$(get_date -20d)\",
@@ -55,13 +55,13 @@ begin_test "prune unreferenced and old"
       {\"Filename\":\"unreferenced.dat\",\"Size\":${#content_unreferenced}, \"Data\":\"$content_unreferenced\"}]
   },
   {
-    \"ParentBranches\":[\"master\"],
+    \"ParentBranches\":[\"main\"],
     \"Files\":[
       {\"Filename\":\"old.dat\",\"Size\":${#content_retain2}, \"Data\":\"$content_retain2\"}]
   }
   ]" | lfstest-testutils addcommits
 
-  git push origin master
+  git push origin main
   git branch -D branch_to_delete
 
   git config lfs.fetchrecentrefsdays 5
@@ -89,7 +89,7 @@ begin_test "prune unreferenced and old"
 
   git lfs prune --verbose 2>&1 | tee prune.log
   grep "prune: 3 local object(s), 2 retained" prune.log
-  grep "prune: Deleting objects: 100% (1/1), done" prune.log
+  grep "prune: Deleting objects: 100% (1/1), done." prune.log
   grep "$oid_retain1" prune.log
   refute_local_object "$oid_retain1"
   assert_local_object "$oid_retain2" "${#content_retain2}"
@@ -134,7 +134,7 @@ begin_test "prune keep unpushed"
   },
   {
     \"CommitDate\":\"$(get_date -31d)\",
-    \"ParentBranches\":[\"master\"],
+    \"ParentBranches\":[\"main\"],
     \"NewBranch\":\"branch_unpushed\",
     \"Files\":[
       {\"Filename\":\"file.dat\",\"Size\":${#content_keepunpushedbranch1}, \"Data\":\"$content_keepunpushedbranch1\"}]
@@ -151,7 +151,7 @@ begin_test "prune keep unpushed"
   },
   {
     \"CommitDate\":\"$(get_date -21d)\",
-    \"ParentBranches\":[\"master\"],
+    \"ParentBranches\":[\"main\"],
     \"Files\":[
       {\"Filename\":\"file.dat\",\"Size\":${#content_keepunpushedhead2}, \"Data\":\"$content_keepunpushedhead2\"}]
   },
@@ -169,28 +169,28 @@ begin_test "prune keep unpushed"
 
   git lfs prune
 
-  # Now push master and show that older versions on master will be removed
-  git push origin master
+  # Now push main and show that older versions on main will be removed
+  git push origin main
 
   git lfs prune --verbose 2>&1 | tee prune.log
   grep "prune: 6 local object(s), 4 retained" prune.log
-  grep "prune: Deleting objects: 100% (2/2), done" prune.log
+  grep "prune: Deleting objects: 100% (2/2), done." prune.log
   grep "$oid_keepunpushedhead1" prune.log
   grep "$oid_keepunpushedhead2" prune.log
   refute_local_object "$oid_keepunpushedhead1"
   refute_local_object "$oid_keepunpushedhead2"
 
-  # MERGE the secondary branch, delete the branch then push master, then make sure
+  # MERGE the secondary branch, delete the branch then push main, then make sure
   # we delete the intermediate commits but also make sure they're on server
   # resolve conflicts by taking other branch
   git merge -Xtheirs branch_unpushed
   git branch -D branch_unpushed
   git lfs prune --dry-run
-  git push origin master
+  git push origin main
 
   git lfs prune --verbose 2>&1 | tee prune.log
   grep "prune: 4 local object(s), 1 retained" prune.log
-  grep "prune: Deleting objects: 100% (3/3), done" prune.log
+  grep "prune: Deleting objects: 100% (3/3), done." prune.log
   grep "$oid_keepunpushedbranch1" prune.log
   grep "$oid_keepunpushedbranch2" prune.log
   grep "$oid_keepunpushedhead3" prune.log
@@ -270,7 +270,7 @@ begin_test "prune keep recent"
   },
   {
     \"CommitDate\":\"$(get_date -9d)\",
-    \"ParentBranches\":[\"master\"],
+    \"ParentBranches\":[\"main\"],
     \"NewBranch\":\"branch1\",
     \"Files\":[
       {\"Filename\":\"file.dat\",\"Size\":${#content_prunecommitbranch1}, \"Data\":\"$content_prunecommitbranch1\"}]
@@ -287,7 +287,7 @@ begin_test "prune keep recent"
   },
   {
     \"CommitDate\":\"$(get_date -17d)\",
-    \"ParentBranches\":[\"master\"],
+    \"ParentBranches\":[\"main\"],
     \"NewBranch\":\"branch2\",
     \"Files\":[
       {\"Filename\":\"file.dat\",\"Size\":${#content_prunecommitbranch2}, \"Data\":\"$content_prunecommitbranch2\"}]
@@ -304,7 +304,7 @@ begin_test "prune keep recent"
   },
   {
     \"CommitDate\":\"$(get_date -1d)\",
-    \"ParentBranches\":[\"master\"],
+    \"ParentBranches\":[\"main\"],
     \"Files\":[
       {\"Filename\":\"file.dat\",\"Size\":${#content_keephead}, \"Data\":\"$content_keephead\"}]
   }
@@ -317,12 +317,12 @@ begin_test "prune keep recent"
   git config lfs.pruneoffsetdays 1
 
   # push everything so that's not a reason to retain
-  git push origin master:master branch_old:branch_old branch1:branch1 branch2:branch2
+  git push origin main:main branch_old:branch_old branch1:branch1 branch2:branch2
 
 
   git lfs prune --verbose 2>&1 | tee prune.log
-  grep "prune: 11 local object(s), 6 retained, done" prune.log
-  grep "prune: Deleting objects: 100% (5/5), done" prune.log
+  grep "prune: 11 local object(s), 6 retained, done." prune.log
+  grep "prune: Deleting objects: 100% (5/5), done." prune.log
   grep "$oid_prunecommitoldbranch" prune.log
   grep "$oid_prunecommitoldbranch2" prune.log
   grep "$oid_prunecommitbranch1" prune.log
@@ -345,8 +345,8 @@ begin_test "prune keep recent"
   # still retain tips of branches
   git config lfs.fetchrecentcommitsdays 0
   git lfs prune --verbose 2>&1 | tee prune.log
-  grep "prune: 6 local object(s), 3 retained, done" prune.log
-  grep "prune: Deleting objects: 100% (3/3), done" prune.log
+  grep "prune: 6 local object(s), 3 retained, done." prune.log
+  grep "prune: Deleting objects: 100% (3/3), done." prune.log
   assert_local_object "$oid_keephead" "${#content_keephead}"
   assert_local_object "$oid_keeprecentbranch1tip" "${#content_keeprecentbranch1tip}"
   assert_local_object "$oid_keeprecentbranch2tip" "${#content_keeprecentbranch2tip}"
@@ -357,8 +357,8 @@ begin_test "prune keep recent"
   # now don't include any recent refs at all, only keep HEAD
   git config lfs.fetchrecentrefsdays 0
   git lfs prune --verbose 2>&1 | tee prune.log
-  grep "prune: 3 local object(s), 1 retained, done" prune.log
-  grep "prune: Deleting objects: 100% (2/2), done" prune.log
+  grep "prune: 3 local object(s), 1 retained, done." prune.log
+  grep "prune: Deleting objects: 100% (2/2), done." prune.log
   assert_local_object "$oid_keephead" "${#content_keephead}"
   refute_local_object "$oid_keeprecentbranch1tip"
   refute_local_object "$oid_keeprecentbranch2tip"
@@ -408,7 +408,7 @@ begin_test "prune remote tests"
 
   # can never prune with no remote
   git lfs prune --verbose 2>&1 | tee prune.log
-  grep "prune: 4 local object(s), 4 retained, done" prune.log
+  grep "prune: 4 local object(s), 4 retained, done." prune.log
 
 
   # also make sure nothing is pruned when remote is not origin
@@ -417,17 +417,17 @@ begin_test "prune remote tests"
   setup_remote_repo "remote2_$reponame"
   cd "$TRASHDIR/$reponame"
   git remote add not_origin "$GITSERVER/remote1_$reponame"
-  git push not_origin master
+  git push not_origin main
 
   git lfs prune --verbose 2>&1 | tee prune.log
-  grep "prune: 4 local object(s), 4 retained, done" prune.log
+  grep "prune: 4 local object(s), 4 retained, done." prune.log
 
   # now set the prune remote to be not_origin, should now prune
   # do a dry run so we can also verify
   git config lfs.pruneremotetocheck not_origin
 
   git lfs prune --verbose --dry-run 2>&1 | tee prune.log
-  grep "prune: 4 local object(s), 1 retained, done" prune.log
+  grep "prune: 4 local object(s), 1 retained, done." prune.log
   grep "prune: 3 file(s) would be pruned" prune.log
 
 
@@ -480,7 +480,7 @@ begin_test "prune verify"
   ]" | lfstest-testutils addcommits
 
   # push all so no unpushed reason to not prune
-  git push origin master
+  git push origin main
 
   # set no recents so max ability to prune normally
   git config lfs.fetchrecentrefsdays 0
@@ -490,7 +490,7 @@ begin_test "prune verify"
 
   # confirm that it would prune with verify when no issues
   git lfs prune --dry-run --verify-remote --verbose 2>&1 | tee prune.log
-  grep "prune: 4 local object(s), 1 retained, 3 verified with remote, done" prune.log
+  grep "prune: 4 local object(s), 1 retained, 3 verified with remote, done." prune.log
   grep "prune: 3 file(s) would be pruned" prune.log
   grep "$oid_commit3" prune.log
   grep "$oid_commit2_failverify" prune.log
@@ -500,7 +500,7 @@ begin_test "prune verify"
   delete_server_object "remote_$reponame" "$oid_commit2_failverify"
   # this should now fail
   git lfs prune --verify-remote 2>&1 | tee prune.log
-  grep "prune: 4 local object(s), 1 retained, 2 verified with remote, done" prune.log
+  grep "prune: 4 local object(s), 1 retained, 2 verified with remote, done." prune.log
   grep "missing on remote:" prune.log
   grep "$oid_commit2_failverify" prune.log
   # Nothing should have been deleted
@@ -512,7 +512,7 @@ begin_test "prune verify"
   git config lfs.pruneverifyremotealways true
   # no verify arg but should be pulled from global
   git lfs prune 2>&1 | tee prune.log
-  grep "prune: 4 local object(s), 1 retained, 2 verified with remote, done" prune.log
+  grep "prune: 4 local object(s), 1 retained, 2 verified with remote, done." prune.log
   grep "missing on remote:" prune.log
   grep "$oid_commit2_failverify" prune.log
   # Nothing should have been deleted
@@ -522,8 +522,8 @@ begin_test "prune verify"
 
   # now try overriding the global option
   git lfs prune --no-verify-remote 2>&1 | tee prune.log
-  grep "prune: 4 local object(s), 1 retained, done" prune.log
-  grep "prune: Deleting objects: 100% (3/3), done" prune.log
+  grep "prune: 4 local object(s), 1 retained, done." prune.log
+  grep "prune: Deleting objects: 100% (3/3), done." prune.log
   # should now have been deleted
   refute_local_object "$oid_commit1"
   refute_local_object "$oid_commit2_failverify"
@@ -574,14 +574,14 @@ begin_test "prune verify large numbers of refs"
   ]" | lfstest-testutils addcommits
 
   # Generate a large number of refs to old commits make sure prune has a lot of data to read
-  git checkout $(git log --pretty=oneline  master | tail -2 | awk '{print $1}' | head -1)
+  git checkout $(git log --pretty=oneline  main | tail -2 | awk '{print $1}' | head -1)
   for i in $(seq 0 1000); do
     git tag v$i
   done
-  git checkout master
+  git checkout main
 
   # push all so no unpushed reason to not prune
-  # git push origin master
+  # git push origin main
 
   # set no recents so max ability to prune normally
   git config lfs.fetchrecentrefsdays 3
@@ -592,5 +592,269 @@ begin_test "prune verify large numbers of refs"
   # confirm that prune does not hang
   git lfs prune --dry-run --verify-remote --verbose 2>&1 | tee prune.log
 
+)
+end_test
+
+begin_test "prune keep stashed changes"
+(
+  set -e
+
+  reponame="prune_keep_stashed"
+  setup_remote_repo "remote_$reponame"
+
+  clone_repo "remote_$reponame" "clone_$reponame"
+
+  git lfs track "*.dat" 2>&1 | tee track.log
+  grep "Tracking \"\*.dat\"" track.log
+
+  # generate content we'll use
+  content_inrepo="This is the original committed data"
+  oid_inrepo=$(calc_oid "$content_inrepo")
+  content_stashed="This data will be stashed and should not be deleted"
+  oid_stashed=$(calc_oid "$content_stashed")
+
+  # We just need one commit of base data, makes it easier to test stash
+  echo "[
+  {
+    \"CommitDate\":\"$(get_date -1d)\",
+    \"Files\":[
+      {\"Filename\":\"stashedfile.dat\",\"Size\":${#content_inrepo}, \"Data\":\"$content_inrepo\"}]
+  }
+  ]" | lfstest-testutils addcommits
+
+  # now modify the file, and stash it
+  printf '%s' "$content_stashed" > stashedfile.dat
+
+  git stash
+
+  # Prove that the stashed data was stored in LFS (should call clean filter)
+  assert_local_object "$oid_stashed" "${#content_stashed}"
+
+  # Prune data, should NOT delete stashed file
+  git lfs prune
+
+  assert_local_object "$oid_stashed" "${#content_stashed}"
+
+)
+end_test
+
+begin_test "prune keep stashed changes in index"
+(
+  set -e
+
+  reponame="prune_keep_stashed_index"
+  setup_remote_repo "remote_$reponame"
+
+  clone_repo "remote_$reponame" "clone_$reponame"
+
+  git lfs track "*.dat" 2>&1 | tee track.log
+  grep "Tracking \"\*.dat\"" track.log
+
+  # generate content we'll use
+  content_inrepo="This is the original committed data"
+  oid_inrepo=$(calc_oid "$content_inrepo")
+  content_indexstashed="This data will be stashed from the index and should not be deleted"
+  oid_indexstashed=$(calc_oid "$content_indexstashed")
+  content_stashed="This data will be stashed and should not be deleted"
+  oid_stashed=$(calc_oid "$content_stashed")
+
+  # We just need one commit of base data, makes it easier to test stash
+  echo "[
+  {
+    \"CommitDate\":\"$(get_date -1d)\",
+    \"Files\":[
+      {\"Filename\":\"stashedfile.dat\",\"Size\":${#content_inrepo}, \"Data\":\"$content_inrepo\"}]
+  }
+  ]" | lfstest-testutils addcommits
+
+  # now modify the file, and add it to the index
+  printf '%s' "$content_indexstashed" > stashedfile.dat
+  git add stashedfile.dat
+
+  # now modify the file again, and stash it
+  printf '%s' "$content_stashed" > stashedfile.dat
+
+  git stash
+
+  # Prove that the stashed data was stored in LFS (should call clean filter)
+  assert_local_object "$oid_stashed" "${#content_stashed}"
+  assert_local_object "$oid_indexstashed" "${#content_indexstashed}"
+
+  # Prune data, should NOT delete stashed file or stashed changes to index
+  git lfs prune
+
+  assert_local_object "$oid_stashed" "${#content_stashed}"
+  assert_local_object "$oid_indexstashed" "${#content_indexstashed}"
+
+  # Restore working tree from stash
+  git stash pop --index
+
+  # Reset working tree to index from stash
+  git checkout .
+)
+end_test
+
+begin_test "prune keep stashed untracked files"
+(
+  set -e
+
+  reponame="prune_keep_stashed_untracked"
+  setup_remote_repo "remote_$reponame"
+
+  clone_repo "remote_$reponame" "clone_$reponame"
+
+  git lfs track "*.dat" 2>&1 | tee track.log
+  grep "Tracking \"\*.dat\"" track.log
+
+  # generate content we'll use
+  content_inrepo="This is the original committed data"
+  oid_inrepo=$(calc_oid "$content_inrepo")
+  content_indexstashed="This data will be stashed from the index and should not be deleted"
+  oid_indexstashed=$(calc_oid "$content_indexstashed")
+  content_stashed="This data will be stashed and should not be deleted"
+  oid_stashed=$(calc_oid "$content_stashed")
+  content_untrackedstashed="This UNTRACKED FILE data will be stashed and should not be deleted"
+  oid_untrackedstashed=$(calc_oid "$content_untrackedstashed")
+
+  # We just need one commit of base data, makes it easier to test stash
+  echo "[
+  {
+    \"CommitDate\":\"$(get_date -1d)\",
+    \"Files\":[
+      {\"Filename\":\"stashedfile.dat\",\"Size\":${#content_inrepo}, \"Data\":\"$content_inrepo\"}]
+  }
+  ]" | lfstest-testutils addcommits
+
+  # now modify the file, and add it to the index
+  printf '%s' "$content_indexstashed" > stashedfile.dat
+  git add stashedfile.dat
+
+  # now modify the file again, and stash it
+  printf '%s' "$content_stashed" > stashedfile.dat
+
+  # Also create an untracked file
+  printf '%s' "$content_untrackedstashed" > untrackedfile.dat
+
+  # stash, including untracked
+  git stash -u
+
+  # Prove that ALL stashed data was stored in LFS (should call clean filter)
+  assert_local_object "$oid_stashed" "${#content_stashed}"
+  assert_local_object "$oid_indexstashed" "${#content_indexstashed}"
+  assert_local_object "$oid_untrackedstashed" "${#content_untrackedstashed}"
+
+  # Prune data, should NOT delete stashed file or stashed changes to index
+  git lfs prune
+
+  assert_local_object "$oid_stashed" "${#content_stashed}"
+  assert_local_object "$oid_indexstashed" "${#content_indexstashed}"
+  assert_local_object "$oid_untrackedstashed" "${#content_untrackedstashed}"
+
+)
+end_test
+
+begin_test "prune recent changes with --recent"
+(
+  set -e
+
+  reponame="prune_recent_arg"
+  setup_remote_repo "remote_$reponame"
+
+  clone_repo "remote_$reponame" "clone_$reponame"
+
+  git lfs track "*.dat"
+
+  # generate content we'll use
+  content_inrepo="this is the original committed data"
+  oid_inrepo=$(calc_oid "$content_inrepo")
+  content_new="this data will be recent"
+  oid_new=$(calc_oid "$content_new")
+
+  echo "[
+  {
+    \"CommitDate\":\"$(get_date -1d)\",
+    \"Files\":[
+      {\"Filename\":\"file.dat\",\"Size\":${#content_inrepo}, \"Data\":\"$content_inrepo\"}]
+  }
+  ]" | lfstest-testutils addcommits
+
+  # now modify the file, and stash it
+  printf '%s' "$content_new" > file.dat
+  git add .
+  git commit -m 'Update file.dat'
+
+  git config lfs.fetchrecentrefsdays 5
+  git config lfs.fetchrecentremoterefs true
+  git config lfs.fetchrecentcommitsdays 3
+
+  assert_local_object "$oid_new" "${#content_new}"
+  assert_local_object "$oid_inrepo" "${#content_inrepo}"
+
+  # prune data, should not delete.
+  git lfs prune --recent
+
+  assert_local_object "$oid_new" "${#content_new}"
+  assert_local_object "$oid_inrepo" "${#content_inrepo}"
+
+  git push origin HEAD
+
+  # prune data.
+  git lfs prune --recent
+
+  assert_local_object "$oid_new" "${#content_new}"
+  refute_local_object "$oid_inrepo" "${#content_inrepo}"
+)
+end_test
+
+begin_test "prune --force"
+(
+  set -e
+
+  reponame="prune_force"
+  setup_remote_repo "remote_$reponame"
+
+  clone_repo "remote_$reponame" "clone_$reponame"
+
+  git lfs track "*.dat"
+
+  # generate content we'll use
+  content_inrepo="this is the original committed data"
+  oid_inrepo=$(calc_oid "$content_inrepo")
+  content_new="this data will be recent"
+  oid_new=$(calc_oid "$content_new")
+
+  echo "[
+  {
+    \"CommitDate\":\"$(get_date -1d)\",
+    \"Files\":[
+      {\"Filename\":\"file.dat\",\"Size\":${#content_inrepo}, \"Data\":\"$content_inrepo\"}]
+  }
+  ]" | lfstest-testutils addcommits
+
+  # now modify the file, and stash it
+  printf '%s' "$content_new" > file.dat
+  git add .
+  git commit -m 'Update file.dat'
+
+  git config lfs.fetchrecentrefsdays 5
+  git config lfs.fetchrecentremoterefs true
+  git config lfs.fetchrecentcommitsdays 3
+
+  assert_local_object "$oid_new" "${#content_new}"
+  assert_local_object "$oid_inrepo" "${#content_inrepo}"
+
+  # prune data, should not delete.
+  git lfs prune --force
+
+  assert_local_object "$oid_new" "${#content_new}"
+  assert_local_object "$oid_inrepo" "${#content_inrepo}"
+
+  git push origin HEAD
+
+  # prune data.
+  git lfs prune --force
+
+  refute_local_object "$oid_new" "${#content_new}"
+  refute_local_object "$oid_inrepo" "${#content_inrepo}"
 )
 end_test

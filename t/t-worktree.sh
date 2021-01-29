@@ -7,10 +7,16 @@ envInitConfig='git config filter.lfs.process = "git-lfs filter-process"
 git config filter.lfs.smudge = "git-lfs smudge -- %f"
 git config filter.lfs.clean = "git-lfs clean -- %f"'
 
+unset_vars () {
+    # If set, these will cause the test to fail.
+    unset GIT_LFS_NO_TEST_COUNT GIT_LFS_LOCK_ACQUIRE_DISABLED
+}
+
 begin_test "git worktree"
 (
     set -e
     reponame="worktree-main"
+    unset_vars
     mkdir $reponame
     cd $reponame
     git init
@@ -21,13 +27,13 @@ begin_test "git worktree"
     git commit -m "Initial commit"
 
     expected=$(printf "%s\n%s\n
-LocalWorkingDir=$(native_path_escaped "$TRASHDIR/$reponame")
-LocalGitDir=$(native_path_escaped "$TRASHDIR/$reponame/.git")
-LocalGitStorageDir=$(native_path_escaped "$TRASHDIR/$reponame/.git")
-LocalMediaDir=$(native_path_escaped "$TRASHDIR/$reponame/.git/lfs/objects")
+LocalWorkingDir=$(canonical_path_escaped "$TRASHDIR/$reponame")
+LocalGitDir=$(canonical_path_escaped "$TRASHDIR/$reponame/.git")
+LocalGitStorageDir=$(canonical_path_escaped "$TRASHDIR/$reponame/.git")
+LocalMediaDir=$(canonical_path_escaped "$TRASHDIR/$reponame/.git/lfs/objects")
 LocalReferenceDirs=
-TempDir=$(native_path_escaped "$TRASHDIR/$reponame/.git/lfs/tmp")
-ConcurrentTransfers=3
+TempDir=$(canonical_path_escaped "$TRASHDIR/$reponame/.git/lfs/tmp")
+ConcurrentTransfers=8
 TusTransfers=false
 BasicTransfersOnly=false
 SkipDownloadErrors=false
@@ -38,11 +44,11 @@ FetchRecentRefsIncludeRemotes=true
 PruneOffsetDays=3
 PruneVerifyRemoteAlways=false
 PruneRemoteName=origin
-LfsStorageDir=$(native_path_escaped "$TRASHDIR/$reponame/.git/lfs")
+LfsStorageDir=$(canonical_path_escaped "$TRASHDIR/$reponame/.git/lfs")
 AccessDownload=none
 AccessUpload=none
-DownloadTransfers=basic
-UploadTransfers=basic
+DownloadTransfers=basic,lfs-standalone-file
+UploadTransfers=basic,lfs-standalone-file
 $(escape_path "$(env | grep "^GIT")")
 %s
 " "$(git lfs version)" "$(git version)" "$envInitConfig")
@@ -57,13 +63,13 @@ $(escape_path "$(env | grep "^GIT")")
     # is only for index, temp etc
     # storage of git objects and lfs objects is in the original .git
     expected=$(printf "%s\n%s\n
-LocalWorkingDir=$(native_path_escaped "$TRASHDIR/$worktreename")
-LocalGitDir=$(native_path_escaped "$TRASHDIR/$reponame/.git/worktrees/$worktreename")
-LocalGitStorageDir=$(native_path_escaped "$TRASHDIR/$reponame/.git")
-LocalMediaDir=$(native_path_escaped "$TRASHDIR/$reponame/.git/lfs/objects")
+LocalWorkingDir=$(canonical_path_escaped "$TRASHDIR/$worktreename")
+LocalGitDir=$(canonical_path_escaped "$TRASHDIR/$reponame/.git/worktrees/$worktreename")
+LocalGitStorageDir=$(canonical_path_escaped "$TRASHDIR/$reponame/.git")
+LocalMediaDir=$(canonical_path_escaped "$TRASHDIR/$reponame/.git/lfs/objects")
 LocalReferenceDirs=
-TempDir=$(native_path_escaped "$TRASHDIR/$reponame/.git/lfs/tmp")
-ConcurrentTransfers=3
+TempDir=$(canonical_path_escaped "$TRASHDIR/$reponame/.git/lfs/tmp")
+ConcurrentTransfers=8
 TusTransfers=false
 BasicTransfersOnly=false
 SkipDownloadErrors=false
@@ -74,11 +80,11 @@ FetchRecentRefsIncludeRemotes=true
 PruneOffsetDays=3
 PruneVerifyRemoteAlways=false
 PruneRemoteName=origin
-LfsStorageDir=$(native_path_escaped "$TRASHDIR/$reponame/.git/lfs")
+LfsStorageDir=$(canonical_path_escaped "$TRASHDIR/$reponame/.git/lfs")
 AccessDownload=none
 AccessUpload=none
-DownloadTransfers=basic
-UploadTransfers=basic
+DownloadTransfers=basic,lfs-standalone-file
+UploadTransfers=basic,lfs-standalone-file
 $(escape_path "$(env | grep "^GIT")")
 %s
 " "$(git lfs version)" "$(git version)" "$envInitConfig")
@@ -91,6 +97,7 @@ begin_test "git worktree with hooks"
 (
     set -e
     reponame="worktree-hooks"
+    unset_vars
     mkdir $reponame
     cd $reponame
     git init

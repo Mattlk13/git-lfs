@@ -19,7 +19,7 @@ begin_test "smudge"
   output="$(pointer fcf5015df7a9089a7aa7fe74139d4b8f7d62e52d5a34f9a87aeffc8e8c668254 9 | git lfs smudge)"
   [ "smudge a" = "$output" ]
 
-  git push origin master
+  git push origin main
 
   # download it from the git lfs server
   rm -rf .git/lfs/objects
@@ -75,7 +75,7 @@ begin_test "smudge include/exclude"
   # smudge works even though it hasn't been pushed, by reading from .git/lfs/objects
   [ "smudge a" = "$(echo "$pointer" | git lfs smudge)" ]
 
-  git push origin master
+  git push origin main
 
   # this WOULD download except we're going to prevent it with include/exclude
   rm -rf .git/lfs/objects
@@ -101,7 +101,7 @@ begin_test "smudge with skip"
   pointer="$(pointer fcf5015df7a9089a7aa7fe74139d4b8f7d62e52d5a34f9a87aeffc8e8c668254 9)"
   [ "smudge a" = "$(echo "$pointer" | git lfs smudge)" ]
 
-  git push origin master
+  git push origin main
 
   # Must clear the cache because smudge will use
   # cached objects even with --skip/GIT_LFS_SKIP_SMUDGE
@@ -152,7 +152,7 @@ begin_test "smudge clone with include/exclude"
   git add a.dat
   git add .gitattributes
   git commit -m "add a.dat" 2>&1 | tee commit.log
-  grep "master (root-commit)" commit.log
+  grep "main (root-commit)" commit.log
   grep "2 files changed" commit.log
   grep "create mode 100644 a.dat" commit.log
   grep "create mode 100644 .gitattributes" commit.log
@@ -161,9 +161,9 @@ begin_test "smudge clone with include/exclude"
 
   assert_local_object "$contents_oid" 1
 
-  git push origin master 2>&1 | tee push.log
+  git push origin main 2>&1 | tee push.log
   grep "Uploading LFS objects: 100% (1/1), 1 B" push.log
-  grep "master -> master" push.log
+  grep "main -> main" push.log
 
   assert_server_object "$reponame" "$contents_oid"
 
@@ -195,7 +195,7 @@ begin_test "smudge skip download failure"
   # smudge works even though it hasn't been pushed, by reading from .git/lfs/objects
   [ "smudge a" = "$(echo "$pointer" | git lfs smudge)" ]
 
-  git push origin master
+  git push origin main
 
   # make it try to download but we're going to make it fail
   rm -rf .git/lfs/objects
@@ -217,5 +217,36 @@ begin_test "smudge skip download failure"
 
   echo "$pointer" | GIT_LFS_SKIP_DOWNLOAD_ERRORS=1 git lfs smudge a.dat
 
+)
+end_test
+
+begin_test "smudge no ref, non-origin"
+(
+  set -e
+
+  reponame="$(basename "$0" ".sh")-no-ref-non-origin"
+  setup_remote_repo "$reponame"
+  clone_repo "$reponame" "$reponame-1"
+
+  git lfs track "*.dat"
+  echo "smudge a" > a.dat
+  git add .gitattributes a.dat
+  git commit -m "add a.dat"
+
+  git push origin main
+  main=$(git rev-parse main)
+
+  cd ..
+  git init "$reponame"
+  cd "$reponame"
+
+  # We intentionally pick a name that is not origin to exercise the remote
+  # selection code path. Since there is only one remote, we should use it
+  # regardless of its name
+  git config remote.random.url "$GITSERVER/$reponame"
+  git fetch "$GITSERVER/$reponame"
+
+  git checkout "$main"
+  [ "smudge a" = "$(cat a.dat)" ]
 )
 end_test

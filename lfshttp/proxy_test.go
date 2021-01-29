@@ -96,9 +96,40 @@ func TestProxyNoProxy(t *testing.T) {
 	assert.Nil(t, err)
 }
 
+func TestProxyNoProxyWithWildcard(t *testing.T) {
+	c, err := NewClient(NewContext(nil, map[string]string{
+		"NO_PROXY": "*.example.com",
+	}, map[string]string{
+		"http.proxy": "https://proxy-from-git-config:8080",
+	}))
+	require.Nil(t, err)
+
+	req, err := http.NewRequest("GET", "https://foo.example.com:8080", nil)
+	require.Nil(t, err)
+
+	proxyURL, err := proxyFromClient(c)(req)
+	assert.Nil(t, proxyURL)
+	assert.Nil(t, err)
+}
+
 func TestSocksProxyFromEnvironment(t *testing.T) {
 	c, err := NewClient(NewContext(nil, map[string]string{
 		"HTTPS_PROXY": "socks5://proxy-from-env:3128",
+	}, nil))
+	require.Nil(t, err)
+
+	req, err := http.NewRequest("GET", "https://some-host.com:123/foo/bar", nil)
+	require.Nil(t, err)
+
+	proxyURL, err := proxyFromClient(c)(req)
+	assert.Equal(t, "socks5", proxyURL.Scheme)
+	assert.Equal(t, "proxy-from-env:3128", proxyURL.Host)
+	assert.Nil(t, err)
+}
+
+func TestSocks5hProxyFromEnvironment(t *testing.T) {
+	c, err := NewClient(NewContext(nil, map[string]string{
+		"HTTPS_PROXY": "socks5h://proxy-from-env:3128",
 	}, nil))
 	require.Nil(t, err)
 

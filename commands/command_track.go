@@ -27,20 +27,12 @@ var (
 	trackDryRunFlag         bool
 	trackNoModifyAttrsFlag  bool
 	trackNoExcludedFlag     bool
+	trackFilenameFlag       bool
 )
 
 func trackCommand(cmd *cobra.Command, args []string) {
 	requireGitVersion()
-
-	if cfg.LocalGitDir() == "" {
-		Print("Not a git repository.")
-		os.Exit(128)
-	}
-
-	if cfg.LocalWorkingDir() == "" {
-		Print("This operation must be run in a work tree.")
-		os.Exit(128)
-	}
+	setupWorkingCopy()
 
 	if !cfg.Os.Bool("GIT_LFS_TRACK_NO_INSTALL_HOOKS", false) {
 		installHooks(false)
@@ -76,6 +68,16 @@ func trackCommand(cmd *cobra.Command, args []string) {
 ArgsLoop:
 	for _, unsanitizedPattern := range args {
 		pattern := trimCurrentPrefix(cleanRootPath(unsanitizedPattern))
+
+		// Generate the new / changed attrib line for merging
+		var encodedArg string
+		if trackFilenameFlag {
+			encodedArg = escapeGlobCharacters(pattern)
+			pattern = escapeGlobCharacters(pattern)
+		} else {
+			encodedArg = escapeAttrPattern(pattern)
+		}
+
 		if !trackNoModifyAttrsFlag {
 			for _, known := range knownPatterns {
 				if unescapeAttrPattern(known.Path) == filepath.Join(relpath, pattern) &&
@@ -88,8 +90,6 @@ ArgsLoop:
 			}
 		}
 
-		// Generate the new / changed attrib line for merging
-		encodedArg := escapeAttrPattern(pattern)
 		lockableArg := ""
 		if trackLockableFlag { // no need to test trackNotLockableFlag, if we got here we're disabling
 			lockableArg = " " + git.LockableAttrib
@@ -290,7 +290,21 @@ var (
 		" ": "[[:space:]]",
 		"#": "\\#",
 	}
+	trackEscapeStrings = []string{"*", "[", "]", "?"}
 )
+
+func escapeGlobCharacters(s string) string {
+	var escaped string = strings.Replace(s, `\`, "/", -1)
+
+	for _, ch := range trackEscapeStrings {
+		escaped = strings.Replace(escaped, ch, fmt.Sprintf("\\%s", ch), -1)
+	}
+
+	for from, to := range trackEscapePatterns {
+		escaped = strings.Replace(escaped, from, to, -1)
+	}
+	return escaped
+}
 
 func escapeAttrPattern(unescaped string) string {
 	var escaped string = strings.Replace(unescaped, `\`, "/", -1)
@@ -320,5 +334,6 @@ func init() {
 		cmd.Flags().BoolVarP(&trackDryRunFlag, "dry-run", "d", false, "preview results of running `git lfs track`")
 		cmd.Flags().BoolVarP(&trackNoModifyAttrsFlag, "no-modify-attrs", "", false, "skip modifying .gitattributes file")
 		cmd.Flags().BoolVarP(&trackNoExcludedFlag, "no-excluded", "", false, "skip listing excluded paths")
+		cmd.Flags().BoolVarP(&trackFilenameFlag, "filename", "", false, "treat this pattern as a literal filename")
 	})
 }

@@ -133,8 +133,8 @@ begin_test "track directory"
   git add foo\ bar
   git commit -am "add foo bar"
 
-  assert_pointer "master" "foo bar/a" "87428fc522803d31065e7bce3cf03fe475096631e5e07bbd7a0fde60c4cf25c7" 2
-  assert_pointer "master" "foo bar/b" "0263829989b6fd954f72baaf2fc64bc2e2f01d692d4de72986ea808f6e99813f" 2
+  assert_pointer "main" "foo bar/a" "87428fc522803d31065e7bce3cf03fe475096631e5e07bbd7a0fde60c4cf25c7" 2
+  assert_pointer "main" "foo bar/b" "0263829989b6fd954f72baaf2fc64bc2e2f01d692d4de72986ea808f6e99813f" 2
 )
 end_test
 
@@ -651,5 +651,62 @@ begin_test "track: escaped pattern in .gitattributes"
     echo >&2 "changing flag for an existing tracked file shouldn't add another line"
     exit 1
   fi
+)
+end_test
+
+begin_test "track: escaped glob pattern in .gitattributes"
+(
+  set -e
+
+  # None of these characters are valid in the Win32 subsystem.
+  [ "$IS_WINDOWS" -eq 1 ] && exit 0
+
+  reponame="track-escaped-glob"
+  git init "$reponame"
+  cd "$reponame"
+
+  filename='*[foo]bar?.txt'
+  contents='I need escaping'
+  contents_oid=$(calc_oid "$contents")
+
+  git lfs track --filename "$filename"
+  git lfs track --filename "$filename" | grep 'already supported'
+  git add .
+  cat .gitattributes
+
+  printf "%s" "$contents" > "$filename"
+  git add .
+  git commit -m 'Add unusually named file'
+
+  # If Git understood our escaping, we'll have a pointer. Otherwise, we won't.
+  assert_pointer "main" "$filename" "$contents_oid" 15
+)
+end_test
+
+begin_test "track: escaped glob pattern with spaces in .gitattributes"
+(
+  set -e
+
+  # None of these characters are valid in the Win32 subsystem.
+  [ "$IS_WINDOWS" -eq 1 ] && exit 0
+
+  reponame="track-escaped-glob"
+  git init "$reponame"
+  cd "$reponame"
+
+  filename="*[foo] bar?.txt"
+  contents='I need escaping'
+  contents_oid=$(calc_oid "$contents")
+
+  git lfs track --filename "$filename"
+  git add .
+  cat .gitattributes
+
+  printf "%s" "$contents" > "$filename"
+  git add .
+  git commit -m 'Add unusually named file'
+
+  # If Git understood our escaping, we'll have a pointer. Otherwise, we won't.
+  assert_pointer "main" "$filename" "$contents_oid" 15
 )
 end_test

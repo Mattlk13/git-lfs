@@ -40,14 +40,14 @@ begin_test "status"
   file_3_new_oid_short="$(echo "$file_3_new_oid" | head -c 7)"
   printf "%s" "$file_3_new" > file3.dat
 
-  expected="On branch master
+  expected="On branch main
 
-Git LFS objects to be committed:
+Objects to be committed:
 
 	file2.dat (LFS: $file_2_oid_short)
 	file3.dat (LFS: $file_3_oid_short)
 
-Git LFS objects not staged for commit:
+Objects not staged for commit:
 
 	file1.dat (LFS: $file_1_oid_short -> File: $file_1_new_oid_short)
 	file3.dat (File: $file_3_new_oid_short)"
@@ -135,12 +135,12 @@ begin_test "status in a sub-directory"
 
   printf "ASDF" > file.dat
 
-  expected="On branch master
+  expected="On branch main
 
-Git LFS objects to be committed:
+Objects to be committed:
 
 
-Git LFS objects not staged for commit:
+Objects not staged for commit:
 
 	../file.dat (LFS: f0e4c2f -> File: 99b3bcf)"
 
@@ -183,11 +183,11 @@ begin_test "status - before initial commit"
   git add file1.dat
 
   expected="
-Git LFS objects to be committed:
+Objects to be committed:
 
 	file1.dat (LFS: $contents_oid_short)
 
-Git LFS objects not staged for commit:"
+Objects not staged for commit:"
 
   [ "$expected" = "$(git lfs status)" ]
 )
@@ -243,13 +243,13 @@ begin_test "status shows multiple copies of partially staged files"
   contents_2_oid_short="$(echo "$contents_2_oid" | head -c 7)"
   printf "%s" "$contents_2" > a.dat
 
-  expected="On branch master
+  expected="On branch main
 
-Git LFS objects to be committed:
+Objects to be committed:
 
 	a.dat (LFS: $contents_1_oid_short)
 
-Git LFS objects not staged for commit:
+Objects not staged for commit:
 
 	a.dat (File: $contents_2_oid_short)"
   actual="$(git lfs status)"
@@ -285,13 +285,13 @@ begin_test "status: LFS to LFS change"
   printf "%s" "$contents_new" > a.dat
   git add a.dat
 
-  expected="On branch master
+  expected="On branch main
 
-Git LFS objects to be committed:
+Objects to be committed:
 
 	a.dat (LFS: $contents_oid_short -> LFS: $contents_new_oid_short)
 
-Git LFS objects not staged for commit:"
+Objects not staged for commit:"
   actual="$(git lfs status)"
 
   [ "$expected" = "$actual" ]
@@ -325,13 +325,13 @@ begin_test "status: Git to LFS change"
   printf "%s" "$contents_new" > a.dat
   git add a.dat
 
-  expected="On branch master
+  expected="On branch main
 
-Git LFS objects to be committed:
+Objects to be committed:
 
 	a.dat (Git: $contents_oid_short -> LFS: $contents_new_oid_short)
 
-Git LFS objects not staged for commit:"
+Objects not staged for commit:"
   actual="$(git lfs status)"
 
   [ "$expected" = "$actual" ]
@@ -358,7 +358,7 @@ begin_test "status: Git to LFS conversion"
   git add .gitattributes
   git commit -m "track *.dat"
 
-  git push origin master
+  git push origin main
 
   pushd "$TRASHDIR" > /dev/null
     clone_repo "$reponame" "$reponame-2"
@@ -371,15 +371,15 @@ begin_test "status: Git to LFS conversion"
       exit 1
     fi
 
-    expected="On branch master
-Git LFS objects to be pushed to origin/master:
+    expected="On branch main
+Objects to be pushed to origin/main:
 
 
-Git LFS objects to be committed:
+Objects to be committed:
 
 	a.dat (Git: $contents_oid_short -> LFS: $contents_oid_short)
 
-Git LFS objects not staged for commit:"
+Objects not staged for commit:"
     actual="$(cat status.log)"
 
     [ "$expected" = "$actual" ]
@@ -426,7 +426,7 @@ begin_test "status (unpushed objects)"
   git add .gitattributes
   git commit -m "initial commit"
 
-  git push origin master
+  git push -u origin main
 
   contents="a"
   oid="$(calc_oid "$contents")"
@@ -435,15 +435,15 @@ begin_test "status (unpushed objects)"
   git add a.dat
   git commit -m "add a large file"
 
-  expected="On branch master
-Git LFS objects to be pushed to origin/master:
+  expected="On branch main
+Objects to be pushed to origin/main:
 
 	a.dat ($oid)
 
-Git LFS objects to be committed:
+Objects to be committed:
 
 
-Git LFS objects not staged for commit:"
+Objects not staged for commit:"
 
   [ "$expected" = "$(git lfs status)" ]
 )
@@ -477,7 +477,7 @@ begin_test "status (deleted files)"
   git add .gitattributes
   git commit -m "initial commit"
 
-  git push origin master
+  git push -u origin main
 
   contents="a"
   oid="$(calc_oid "$contents")"
@@ -489,17 +489,107 @@ begin_test "status (deleted files)"
 
   git rm a.dat
 
-  expected="On branch master
-Git LFS objects to be pushed to origin/master:
+  expected="On branch main
+Objects to be pushed to origin/main:
 
 	a.dat ($oid)
 
-Git LFS objects to be committed:
+Objects to be committed:
 
 	a.dat (LFS: $oid_short -> File: deleted)
 
-Git LFS objects not staged for commit:"
+Objects not staged for commit:"
 
   [ "$expected" = "$(git lfs status)" ]
+)
+end_test
+
+begin_test "status (file to dir)"
+(
+  set -e
+
+  reponame="status-file-to-dir"
+  setup_remote_repo "$reponame"
+  clone_repo "$reponame" "$reponame"
+
+  git lfs track "*.dat"
+  git add .gitattributes
+  git commit -m "initial commit"
+
+  printf 'file' > test
+  git add test
+  git commit -m "add test"
+
+  obj=$(calc_oid "file" | head -c 7)
+
+  git rm test
+  mkdir test
+
+  contents="a"
+  oid="$(calc_oid "$contents")"
+  oid_short="$(calc_oid "$contents" | head -c 7)"
+  printf "%s" "$contents" > test/a.dat
+
+  git add test
+  git commit -m "add files"
+
+  git reset HEAD~
+  git add test
+
+  expected="On branch main
+
+Objects to be committed:
+
+	test (Git: $obj -> File: deleted)
+	test/a.dat (LFS: $oid_short)
+
+Objects not staged for commit:"
+
+  [ "$expected" = "$(git lfs status)" ]
+)
+end_test
+
+
+begin_test "status: permission change"
+(
+  set -e
+
+  # We're using chmod below.
+  if [ "$IS_WINDOWS" -eq 1 ]; then
+    exit 0
+  fi
+
+  reponame="status-permission-change"
+  setup_remote_repo "$reponame"
+  clone_repo "$reponame" "$reponame"
+
+  contents="contents"
+
+  git lfs track "*.dat"
+  git add .gitattributes
+  git commit -m "track *.dat"
+
+  printf "%s" "$contents" > a.dat
+  git add a.dat
+  git commit -m "add a.dat"
+
+  chmod 400 a.dat
+
+  # A permission change should not result in any output.
+  git lfs status 2>&1 | tee status.log
+  if [ "0" -ne "${PIPESTATUS[0]}" ]; then
+    echo >&2 "git lfs status should have succeeded, didn't ..."
+    exit 1
+  fi
+
+  expected="On branch main
+
+Objects to be committed:
+
+
+Objects not staged for commit:"
+  actual="$(cat status.log)"
+
+  [ "$expected" = "$actual" ]
 )
 end_test

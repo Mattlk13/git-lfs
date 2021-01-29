@@ -29,7 +29,7 @@ begin_test "pull"
   printf "%s" "$contents3" > dir/dir.dat
   git add .
   git commit -m "add files" 2>&1 | tee commit.log
-  grep "master (root-commit)" commit.log
+  grep "main (root-commit)" commit.log
   grep "5 files changed" commit.log
   grep "create mode 100644 a.dat" commit.log
   grep "create mode 100644 .gitattributes" commit.log
@@ -39,18 +39,18 @@ begin_test "pull"
   [ "A" = "$(cat "á.dat")" ]
   [ "dir" = "$(cat "dir/dir.dat")" ]
 
-  assert_pointer "master" "a.dat" "$contents_oid" 1
-  assert_pointer "master" "á.dat" "$contents2_oid" 1
-  assert_pointer "master" "dir/dir.dat" "$contents3_oid" 3
+  assert_pointer "main" "a.dat" "$contents_oid" 1
+  assert_pointer "main" "á.dat" "$contents2_oid" 1
+  assert_pointer "main" "dir/dir.dat" "$contents3_oid" 3
 
   refute_server_object "$reponame" "$contents_oid"
   refute_server_object "$reponame" "$contents2_oid"
   refute_server_object "$reponame" "$contents33oid"
 
   echo "initial push"
-  git push origin master 2>&1 | tee push.log
+  git push origin main 2>&1 | tee push.log
   grep "Uploading LFS objects: 100% (3/3), 5 B" push.log
-  grep "master -> master" push.log
+  grep "main -> main" push.log
 
   assert_server_object "$reponame" "$contents_oid"
   assert_server_object "$reponame" "$contents2_oid"
@@ -60,6 +60,8 @@ begin_test "pull"
   cd ../clone
 
   echo "normal pull"
+  git config branch.main.remote origin
+  git config branch.main.merge refs/heads/main
   git pull 2>&1
 
   [ "a" = "$(cat a.dat)" ]
@@ -72,22 +74,24 @@ begin_test "pull"
   echo "lfs pull"
   rm -r a.dat á.dat dir # removing files makes the status dirty
   rm -rf .git/lfs/objects
-  git lfs pull 2>&1 | grep "Downloading LFS objects: 100% (3/3), 5 B"
+  git lfs pull
   ls -al
   [ "a" = "$(cat a.dat)" ]
   [ "A" = "$(cat "á.dat")" ]
   assert_local_object "$contents_oid" 1
   assert_local_object "$contents2_oid" 1
+  git lfs fsck
 
   echo "lfs pull with remote"
   rm -r a.dat á.dat dir
   rm -rf .git/lfs/objects
-  git lfs pull origin 2>&1 | grep "Downloading LFS objects: 100% (3/3), 5 B"
+  git lfs pull origin
   [ "a" = "$(cat a.dat)" ]
   [ "A" = "$(cat "á.dat")" ]
   assert_local_object "$contents_oid" 1
   assert_local_object "$contents2_oid" 1
   assert_clean_status
+  git lfs fsck
 
   echo "lfs pull with local storage"
   rm a.dat á.dat
@@ -199,7 +203,7 @@ begin_test "pull with raw remote url"
   git lfs install --local --skip-smudge
 
   git remote add origin $GITSERVER/t-pull
-  git pull origin master
+  git pull origin main
 
   contents="a"
   contents_oid=$(calc_oid "$contents")
@@ -228,7 +232,7 @@ begin_test "pull with multiple remotes"
 
   git remote add origin "$GITSERVER/t-pull"
   git remote add bad-remote "invalid-url"
-  git pull origin master
+  git pull origin main
 
   contents="a"
   contents_oid=$(calc_oid "$contents")
@@ -257,7 +261,7 @@ begin_test "pull with invalid insteadof"
   git lfs install --local --skip-smudge
 
   git remote add origin "$GITSERVER/t-pull"
-  git pull origin master
+  git pull origin main
 
   # set insteadOf to rewrite the href of downloading LFS object.
   git config url."$GITSERVER/storage/invalid".insteadOf "$GITSERVER/storage/"
@@ -280,6 +284,36 @@ begin_test "pull with invalid insteadof"
 )
 end_test
 
+begin_test "pull with merge conflict"
+(
+  set -e
+  git init pull-merge-conflict
+  cd pull-merge-conflict
+
+  git lfs track "*.bin"
+  git add .
+  git commit -m 'gitattributes'
+  printf abc > abc.bin
+  git add .
+  git commit -m 'abc'
+
+  git checkout -b def
+  printf def > abc.bin
+  git add .
+  git commit -m 'def'
+
+  git checkout main
+  printf ghi > abc.bin
+  git add .
+  git commit -m 'ghi'
+
+  # This will exit nonzero because of the merge conflict.
+  GIT_LFS_SKIP_SMUDGE=1 git merge def || true
+  git lfs pull > pull.log 2>&1
+  [ ! -s pull.log ]
+)
+end_test
+
 begin_test "pull: with missing object"
 (
   set -e
@@ -294,6 +328,8 @@ begin_test "pull: with missing object"
   refute_server_object "$reponame" "$contents_oid"
 
   # should return non-zero, but should also download all the other valid files too
+  git config branch.main.remote origin
+  git config branch.main.merge refs/heads/main
   git lfs pull 2>&1 | tee pull.log
   pull_exit="${PIPESTATUS[0]}"
   [ "$pull_exit" != "0" ]

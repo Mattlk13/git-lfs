@@ -12,7 +12,7 @@ import (
 	"github.com/git-lfs/git-lfs/lfs"
 	"github.com/git-lfs/git-lfs/tasklog"
 	"github.com/git-lfs/git-lfs/tools"
-	"github.com/git-lfs/gitobj"
+	"github.com/git-lfs/gitobj/v2"
 	"github.com/spf13/cobra"
 )
 
@@ -102,7 +102,7 @@ func migrateExportCommand(cmd *cobra.Command, args []string) {
 		UpdateRefs: true,
 	}
 
-	requireInRepo()
+	setupRepository()
 
 	opts, err = rewriteOptions(args, opts, l)
 	if err != nil {
@@ -121,7 +121,7 @@ func migrateExportCommand(cmd *cobra.Command, args []string) {
 	// If we have a valid remote, pre-download all objects using the Transfer Queue
 	if remoteURL != "" {
 		q := newDownloadQueue(getTransferManifestOperationRemote("Download", remote), remote)
-		gs := lfs.NewGitScanner(func(p *lfs.WrappedPointer, err error) {
+		gs := lfs.NewGitScanner(cfg, func(p *lfs.WrappedPointer, err error) {
 			if err != nil {
 				return
 			}
@@ -136,7 +136,7 @@ func migrateExportCommand(cmd *cobra.Command, args []string) {
 			}
 
 			if _, err := os.Stat(downloadPath); os.IsNotExist(err) {
-				q.Add(p.Name, downloadPath, p.Oid, p.Size, false)
+				q.Add(p.Name, downloadPath, p.Oid, p.Size, false, nil)
 			}
 		})
 		gs.ScanRefs(opts.Include, opts.Exclude, nil)
@@ -187,7 +187,7 @@ func trackedFromExportFilter(filter *filepathfilter.Filter) *tools.OrderedSet {
 	tracked := tools.NewOrderedSet()
 
 	for _, include := range filter.Include() {
-		tracked.Add(fmt.Sprintf("%s text !filter !merge !diff", escapeAttrPattern(include)))
+		tracked.Add(fmt.Sprintf("%s !text !filter !merge !diff", escapeAttrPattern(include)))
 	}
 
 	for _, exclude := range filter.Exclude() {

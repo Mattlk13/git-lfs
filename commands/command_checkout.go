@@ -20,7 +20,7 @@ var (
 )
 
 func checkoutCommand(cmd *cobra.Command, args []string) {
-	requireInRepo()
+	setupRepository()
 
 	stage, err := whichCheckout()
 	if err != nil {
@@ -54,7 +54,7 @@ func checkoutCommand(cmd *cobra.Command, args []string) {
 	meter.Direction = tq.Checkout
 	meter.Logger = meter.LoggerFromEnv(cfg.Os)
 	logger.Enqueue(meter)
-	chgitscanner := lfs.NewGitScanner(func(p *lfs.WrappedPointer, err error) {
+	chgitscanner := lfs.NewGitScanner(cfg, func(p *lfs.WrappedPointer, err error) {
 		if err != nil {
 			LoggedError(err, "Scanner error: %s", err)
 			return
@@ -99,7 +99,7 @@ func checkoutConflict(file string, stage git.IndexStage) {
 		Exit("Could not checkout (are you not in the middle of a merge?): %v", err)
 	}
 
-	scanner, err := git.NewObjectScanner()
+	scanner, err := git.NewObjectScanner(cfg.GitEnv(), cfg.OSEnv())
 	if err != nil {
 		Exit("Could not create object scanner: %v", err)
 	}
@@ -139,7 +139,7 @@ func whichCheckout() (stage git.IndexStage, err error) {
 	}
 
 	if seen > 1 {
-		return 0, fmt.Errorf("At most one of --base, --theirs, and --ours is allowed")
+		return 0, fmt.Errorf("at most one of --base, --theirs, and --ours is allowed")
 	}
 	return stage, nil
 }

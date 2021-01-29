@@ -4,14 +4,13 @@ import (
 	"bufio"
 	"fmt"
 	"io"
-	"path/filepath"
 	"strings"
 
 	"github.com/git-lfs/git-lfs/errors"
 	"github.com/git-lfs/git-lfs/git"
 	"github.com/git-lfs/git-lfs/git/githistory"
 	"github.com/git-lfs/git-lfs/tasklog"
-	"github.com/git-lfs/gitobj"
+	"github.com/git-lfs/gitobj/v2"
 	"github.com/spf13/cobra"
 )
 
@@ -31,6 +30,11 @@ var (
 	// remote references, and thus should not contact the remote for a set
 	// of updated references.
 	migrateSkipFetch bool
+
+	// migrateImportAboveFmt indicates the presence of the --above=<size>
+	// flag and instructs 'git lfs migrate import' to import all files
+	// above the provided size.
+	migrateImportAboveFmt string
 
 	// migrateEverything indicates the presence of the --everything flag,
 	// and instructs 'git lfs migrate' to migrate all local references.
@@ -62,7 +66,7 @@ var (
 // migrate takes the given command and arguments, *gitobj.ObjectDatabase, as well
 // as a BlobRewriteFn to apply, and performs a migration.
 func migrate(args []string, r *githistory.Rewriter, l *tasklog.Logger, opts *githistory.RewriteOptions) {
-	requireInRepo()
+	setupRepository()
 
 	opts, err := rewriteOptions(args, opts, l)
 	if err != nil {
@@ -82,7 +86,8 @@ func getObjectDatabase() (*gitobj.ObjectDatabase, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "cannot open root")
 	}
-	return gitobj.FromFilesystem(filepath.Join(dir, "objects"), cfg.TempDir())
+
+	return git.ObjectDatabase(cfg.OSEnv(), cfg.GitEnv(), dir, cfg.TempDir())
 }
 
 // rewriteOptions returns *githistory.RewriteOptions able to be passed to a
@@ -302,7 +307,7 @@ func currentRefToMigrate() (*git.Ref, error) {
 // filter given by the --include and --exclude arguments.
 func getHistoryRewriter(cmd *cobra.Command, db *gitobj.ObjectDatabase, l *tasklog.Logger) *githistory.Rewriter {
 	include, exclude := getIncludeExcludeArgs(cmd)
-	filter := buildFilepathFilter(cfg, include, exclude)
+	filter := buildFilepathFilter(cfg, include, exclude, false)
 
 	return githistory.NewRewriter(db,
 		githistory.WithFilter(filter), githistory.WithLogger(l))
@@ -340,7 +345,7 @@ func ensureWorkingCopyClean(in io.Reader, out io.Writer) {
 			case "n", "N":
 				proceed = false
 				break L
-			case "y", "Y":
+			case "y", "Y", "":
 				proceed = true
 				break L
 			}
@@ -365,6 +370,7 @@ func init() {
 	info.Flags().StringVar(&migrateInfoUnitFmt, "unit", "", "--unit=<unit>")
 
 	importCmd := NewCommand("import", migrateImportCommand)
+	importCmd.Flags().StringVar(&migrateImportAboveFmt, "above", "", "--above=<n>")
 	importCmd.Flags().BoolVar(&migrateVerbose, "verbose", false, "Verbose logging")
 	importCmd.Flags().StringVar(&objectMapFilePath, "object-map", "", "Object map file")
 	importCmd.Flags().BoolVar(&migrateNoRewrite, "no-rewrite", false, "Add new history without rewriting previous")
